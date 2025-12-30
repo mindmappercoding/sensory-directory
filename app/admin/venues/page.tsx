@@ -1,8 +1,9 @@
-// app/admin/venues/page.tsx
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ArchiveVenueButton } from "./ArchiveVenueButton";
 import { VerifyVenueButton } from "./VerifyVenueButton";
+import { UnarchiveVenueButton } from "./UnarchiveVenueButton"
+
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -31,7 +32,7 @@ export default async function AdminVenuesPage() {
               key={v.id}
               className={[
                 "relative rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4",
-                archived && "bg-red-50 border-red-200 opacity-75",
+                archived && "bg-red-50 border-red-200 opacity-80",
               ].join(" ")}
             >
               {archived && (
@@ -57,7 +58,8 @@ export default async function AdminVenuesPage() {
                 </div>
               </div>
 
-              <div className="flex gap-2 shrink-0">
+              <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+                {/* ✅ Admin view (not public) */}
                 <Link
                   href={`/admin/venues/${v.id}`}
                   className="rounded-lg border px-3 py-1 text-sm"
@@ -72,12 +74,11 @@ export default async function AdminVenuesPage() {
                   Edit
                 </Link>
 
-                {!archived && (
+                {archived ? (
+                  <UnarchiveVenueButton id={v.id} />
+                ) : (
                   <>
-                    <VerifyVenueButton
-                      id={v.id}
-                      verified={!!v.verifiedAt}
-                    />
+                    <VerifyVenueButton id={v.id} verified={!!v.verifiedAt} />
                     <ArchiveVenueButton id={v.id} />
                   </>
                 )}
