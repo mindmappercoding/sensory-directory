@@ -21,6 +21,11 @@ enum SubmissionStatus {
   REJECTED
 }
 
+enum SubmissionType {
+  NEW_VENUE
+  EDIT_VENUE
+}
+
 model Venue {
   id          String   @id @default(auto()) @map("_id") @db.ObjectId
   name        String
@@ -32,12 +37,19 @@ model Venue {
   address2    String?
   city        String?
   postcode    String?
+  county      String?
   country     String   @default("UK")
 
   lat         Float?
   lng         Float?
+  geohash     String?
 
-  tags        String[]
+  tags        String[] // keep for MVP, but enforce in code
+
+  // “trust + confidence” (great for list sorting)
+  confidenceScore Int?     // 0-100
+  reviewCount     Int      @default(0)
+  lastReviewedAt  DateTime?
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -51,6 +63,7 @@ model Venue {
 
   @@index([city])
   @@index([postcode])
+  @@index([geohash])
 }
 
 model SensoryProfile {
@@ -68,30 +81,16 @@ model SensoryProfile {
 }
 
 model Facilities {
-  id                 String @id @default(auto()) @map("_id") @db.ObjectId
-  venueId            String @unique @db.ObjectId
-  venue              Venue  @relation(fields: [venueId], references: [id])
+  id               String @id @default(auto()) @map("_id") @db.ObjectId
+  venueId          String @unique @db.ObjectId
+  venue            Venue  @relation(fields: [venueId], references: [id])
 
-  parking            Boolean?
-  accessibleToilet   Boolean?
-  babyChange         Boolean?
-  wheelchairAccess   Boolean?
-  staffTrained       Boolean?
-  notes              String?
-}
-
-model VenueSubmission {
-  id           String   @id @default(auto()) @map("_id") @db.ObjectId
-  venueId      String?  @db.ObjectId
-  venue        Venue?   @relation(fields: [venueId], references: [id])
-
-  status       SubmissionStatus @default(PENDING)
-  proposedName String?
-  payload      Json
-
-  createdAt    DateTime @default(now())
-
-  @@index([status])
+  parking          Boolean?
+  accessibleToilet Boolean?
+  babyChange       Boolean?
+  wheelchairAccess Boolean?
+  staffTrained     Boolean?
+  notes            String?
 }
 
 model Review {
@@ -99,12 +98,48 @@ model Review {
   venueId       String   @db.ObjectId
   venue         Venue    @relation(fields: [venueId], references: [id])
 
-  rating        Int
+  // optional “who” (you can add auth later)
+  authorName    String?
+  authorId      String?
+
+  rating        Int      // 1-5
   title         String?
   content       String?
   visitTimeHint String?
 
+  // sensory-specific signals (this is the gold)
+  noiseLevel    SensoryLevel?
+  lighting      SensoryLevel?
+  crowding      SensoryLevel?
+  quietSpace    Boolean?
+  sensoryHours  Boolean?
+
   createdAt     DateTime @default(now())
 
   @@index([venueId])
+  @@index([createdAt])
+}
+
+model VenueSubmission {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  type         SubmissionType @default(NEW_VENUE)
+
+  venueId      String?  @db.ObjectId
+  venue        Venue?   @relation(fields: [venueId], references: [id])
+
+  status       SubmissionStatus @default(PENDING)
+
+  submittedBy  String?
+  proposedName String?
+  payload      Json
+
+  reviewedAt   DateTime?
+  reviewedBy   String?
+  rejectionReason String?
+
+  createdAt    DateTime @default(now())
+
+  @@index([status])
+  @@index([type])
 }
