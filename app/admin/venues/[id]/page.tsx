@@ -1,7 +1,11 @@
+// app/admin/venues/[id]/page.tsx
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 
-export default async function VenueDetailPage({
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+export default async function AdminVenueDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
@@ -9,15 +13,14 @@ export default async function VenueDetailPage({
   const { id } = await params;
   if (!id) return notFound();
 
-  const venue = await prisma.venue.findFirst({
-    where: {
-      id,
-      OR: [{ archivedAt: null }, { archivedAt: { isSet: false } }],
-    },
+  // ✅ Admin can view ALL venues (including archived)
+  const venue = await prisma.venue.findUnique({
+    where: { id },
     include: {
       sensory: true,
       facilities: true,
       reviews: true,
+      submissions: true, // included but not rendered (kept for admin use later)
     },
   });
 
@@ -26,14 +29,16 @@ export default async function VenueDetailPage({
   return (
     <main className="mx-auto max-w-3xl p-6 space-y-10">
       <header>
-        <div className="flex items-start justify-between gap-3">
-          <h1 className="text-3xl font-semibold">{venue.name}</h1>
+        <h1 className="text-3xl font-semibold">{venue.name}</h1>
 
-          {!!venue.verifiedAt && (
-            <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
-              Verified
-            </span>
+        {/* Optional: tiny admin-only status line (same UI style, just a small line) */}
+        <div className="mt-2 text-xs space-x-2">
+          {venue.verifiedAt ? (
+            <span className="text-emerald-600">Verified</span>
+          ) : (
+            <span className="text-amber-600">Unverified</span>
           )}
+          {venue.archivedAt && <span className="text-red-600">Archived</span>}
         </div>
 
         <p className="mt-2 text-muted-foreground">
@@ -122,9 +127,7 @@ export default async function VenueDetailPage({
             <div>Staff trained: {venue.facilities.staffTrained ? "Yes" : "No"}</div>
 
             {venue.facilities.notes && (
-              <div className="pt-2 text-muted-foreground">
-                {venue.facilities.notes}
-              </div>
+              <div className="pt-2 text-muted-foreground">{venue.facilities.notes}</div>
             )}
           </div>
         </section>

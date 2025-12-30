@@ -9,14 +9,18 @@ type Filters = {
 };
 
 export async function listVenues(filters: Filters) {
-  const where: any = {};
+  const where: any = {
+    OR: [
+      { archivedAt: null },
+      { archivedAt: { isSet: false } }, // Mongo-only
+    ],
+  };
 
   if (filters.city) {
     where.city = { equals: filters.city, mode: "insensitive" };
   }
 
   if (filters.tag) {
-    // tags is String[]
     where.tags = { has: filters.tag.toLowerCase() };
   }
 
@@ -27,7 +31,6 @@ export async function listVenues(filters: Filters) {
       { description: { contains: q, mode: "insensitive" } },
       { city: { contains: q, mode: "insensitive" } },
       { postcode: { contains: q, mode: "insensitive" } },
-      // optional: tag search via hasSome if you store tags normalized
       { tags: { has: q.toLowerCase() } },
     ];
   }
@@ -52,6 +55,13 @@ export async function listVenues(filters: Filters) {
     where,
     orderBy: { createdAt: "desc" },
     take: 50,
-    select: { id: true, name: true, city: true, postcode: true, tags: true },
+    select: {
+      id: true,
+      name: true,
+      city: true,
+      postcode: true,
+      tags: true,
+      verifiedAt: true,
+    },
   });
 }
