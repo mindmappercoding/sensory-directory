@@ -1,11 +1,12 @@
 import { MongoClient } from "mongodb";
 
-const uri = process.env.MONGODB_URI!;
-if (!uri) throw new Error("Missing MONGODB_URI");
+const uri = process.env.MONGODB_URI;
+if (!uri) throw new Error("Missing MONGODB_URI in .env.local");
 
 let client: MongoClient;
 let clientPromise: Promise<MongoClient>;
 
+// Prevent creating many clients in dev (HMR)
 declare global {
   // eslint-disable-next-line no-var
   var _mongoClientPromise: Promise<MongoClient> | undefined;
@@ -22,7 +23,4 @@ if (process.env.NODE_ENV === "development") {
   clientPromise = client.connect();
 }
 
-export async function getDb() {
-  const client = await clientPromise;
-  return client.db(process.env.MONGODB_DB_NAME); // set this env var too
-}
+export default clientPromise;
