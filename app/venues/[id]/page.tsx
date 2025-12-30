@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { ReviewForm } from "./ReviewForm";
 
 export default async function VenueDetailPage({
   params,
@@ -99,7 +100,9 @@ export default async function VenueDetailPage({
           <div>Sensory hours: {venue.sensory?.sensoryHours ? "Yes" : "No"}</div>
 
           {venue.sensory?.notes && (
-            <div className="pt-2 text-muted-foreground">{venue.sensory.notes}</div>
+            <div className="pt-2 text-muted-foreground">
+              {venue.sensory.notes}
+            </div>
           )}
         </div>
       </section>
@@ -119,7 +122,9 @@ export default async function VenueDetailPage({
               Wheelchair access:{" "}
               {venue.facilities.wheelchairAccess ? "Yes" : "No"}
             </div>
-            <div>Staff trained: {venue.facilities.staffTrained ? "Yes" : "No"}</div>
+            <div>
+              Staff trained: {venue.facilities.staffTrained ? "Yes" : "No"}
+            </div>
 
             {venue.facilities.notes && (
               <div className="pt-2 text-muted-foreground">
@@ -133,19 +138,83 @@ export default async function VenueDetailPage({
       <section>
         <h2 className="text-lg font-semibold mb-3">Reviews</h2>
 
+        <ReviewForm venueId={venue.id} />
+
         {venue.reviews.length === 0 ? (
           <p className="text-sm text-muted-foreground">No reviews yet.</p>
         ) : (
           <div className="space-y-3">
-            {venue.reviews.map((r) => (
-              <div key={r.id} className="rounded-xl border p-4 text-sm">
-                <div className="font-medium">Rating: {r.rating}/5</div>
-                {r.title && <div className="mt-1">{r.title}</div>}
-                {r.content && (
-                  <div className="mt-2 text-muted-foreground">{r.content}</div>
-                )}
-              </div>
-            ))}
+            {[...venue.reviews]
+              .sort(
+                (a, b) =>
+                  Number(new Date(b.createdAt)) - Number(new Date(a.createdAt))
+              )
+              .map((r) => (
+                <div
+                  key={r.id}
+                  className="rounded-xl border p-4 text-sm space-y-2"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="font-medium">
+                      Rating: {r.rating}/5
+                      {r.title ? (
+                        <span className="font-normal"> — {r.title}</span>
+                      ) : null}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(r.createdAt).toLocaleDateString("en-GB")}
+                    </div>
+                  </div>
+
+                  {(r.authorName || r.visitTimeHint) && (
+                    <div className="text-xs text-muted-foreground">
+                      {r.authorName ? <span>By {r.authorName}</span> : null}
+                      {r.authorName && r.visitTimeHint ? (
+                        <span> • </span>
+                      ) : null}
+                      {r.visitTimeHint ? (
+                        <span>Visited: {r.visitTimeHint}</span>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {r.content && (
+                    <div className="text-muted-foreground">{r.content}</div>
+                  )}
+
+                  {/* Sensory signals */}
+                  {(r.noiseLevel ||
+                    r.lighting ||
+                    r.crowding ||
+                    r.quietSpace !== null ||
+                    r.sensoryHours !== null) && (
+                    <div className="rounded-lg bg-muted/30 p-3 text-xs">
+                      <div className="font-medium mb-1">Sensory signals</div>
+                      <div className="grid gap-1 sm:grid-cols-2">
+                        <div>Noise: {r.noiseLevel ?? "—"}</div>
+                        <div>Lighting: {r.lighting ?? "—"}</div>
+                        <div>Crowding: {r.crowding ?? "—"}</div>
+                        <div>
+                          Quiet space:{" "}
+                          {r.quietSpace === null
+                            ? "—"
+                            : r.quietSpace
+                            ? "Yes"
+                            : "No"}
+                        </div>
+                        <div>
+                          Sensory hours:{" "}
+                          {r.sensoryHours === null
+                            ? "—"
+                            : r.sensoryHours
+                            ? "Yes"
+                            : "No"}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
           </div>
         )}
       </section>
