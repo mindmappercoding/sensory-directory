@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+enum SensoryLevel {
+  VERY_LOW
+  LOW
+  MEDIUM
+  HIGH
+  VERY_HIGH
+}
+
+enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model Venue {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+  name        String
+  description String?
+  website     String?
+  phone       String?
+
+  address1    String?
+  address2    String?
+  city        String?
+  postcode    String?
+  country     String   @default("UK")
+
+  lat         Float?
+  lng         Float?
+
+  tags        String[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  verifiedAt  DateTime?
+
+  sensory     SensoryProfile?
+  facilities  Facilities?
+
+  submissions VenueSubmission[]
+  reviews     Review[]
+
+  @@index([city])
+  @@index([postcode])
+}
+
+model SensoryProfile {
+  id           String @id @default(auto()) @map("_id") @db.ObjectId
+  venueId      String @unique @db.ObjectId
+  venue        Venue  @relation(fields: [venueId], references: [id])
+
+  noiseLevel   SensoryLevel?
+  lighting     SensoryLevel?
+  crowding     SensoryLevel?
+
+  quietSpace   Boolean?
+  sensoryHours Boolean?
+  notes        String?
+}
+
+model Facilities {
+  id                 String @id @default(auto()) @map("_id") @db.ObjectId
+  venueId            String @unique @db.ObjectId
+  venue              Venue  @relation(fields: [venueId], references: [id])
+
+  parking            Boolean?
+  accessibleToilet   Boolean?
+  babyChange         Boolean?
+  wheelchairAccess   Boolean?
+  staffTrained       Boolean?
+  notes              String?
+}
+
+model VenueSubmission {
+  id           String   @id @default(auto()) @map("_id") @db.ObjectId
+  venueId      String?  @db.ObjectId
+  venue        Venue?   @relation(fields: [venueId], references: [id])
+
+  status       SubmissionStatus @default(PENDING)
+  proposedName String?
+  payload      Json
+
+  createdAt    DateTime @default(now())
+
+  @@index([status])
+}
+
+model Review {
+  id            String   @id @default(auto()) @map("_id") @db.ObjectId
+  venueId       String   @db.ObjectId
+  venue         Venue    @relation(fields: [venueId], references: [id])
+
+  rating        Int
+  title         String?
+  content       String?
+  visitTimeHint String?
+
+  createdAt     DateTime @default(now())
+
+  @@index([venueId])
+}
