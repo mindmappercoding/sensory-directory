@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { listVenues } from "@/lib/venues";
 import VenueFilters from "./VenueFilters";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -32,9 +33,22 @@ export default async function VenuesPage({
 
   return (
     <main className="mx-auto max-w-3xl p-6">
-      <h1 className="text-2xl font-semibold">Venues</h1>
+  <h1 className="text-2xl font-semibold">Venues</h1>
 
-      <VenueFilters />
+  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <p className="text-sm text-muted-foreground max-w-md">
+      Know a place that works well for children with sensory needs?
+      Help other parents by sharing it.
+    </p>
+
+    <Link href="/submit">
+      <Button variant="outline">
+        Submit a venue
+      </Button>
+    </Link>
+  </div>
+
+  <VenueFilters />
 
       <div className="mt-4 space-y-3">
         {venues.map((v) => (
