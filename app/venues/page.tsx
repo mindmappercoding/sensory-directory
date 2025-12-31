@@ -1,6 +1,9 @@
+// app/venues/page.tsx
 import { listVenues } from "@/lib/venues";
 import VenueFilters from "./VenueFilters";
+import { Button } from "@/components/ui/button";
 import Link from "next/link";
+import Image from "next/image";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -40,116 +43,127 @@ export default async function VenuesPage({
   const venues = await listVenues(filters);
 
   return (
-    <main className="space-y-5">
-      {/* Banner / Hero */}
-      <section className="rounded-3xl border bg-card/60 p-6 sm:p-8 relative overflow-hidden">
-        <div className="absolute -right-24 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-2xl" />
-        <div className="absolute -left-24 -bottom-24 h-64 w-64 rounded-full bg-sky-400/10 blur-2xl" />
-
-        <div className="relative">
-          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight">
-            Find sensory-friendly venues
-          </h1>
-          <p className="mt-2 text-sm sm:text-base text-muted-foreground max-w-2xl">
-            Search by venue name, filter by features, and discover places that feel
-            calmer, kinder, and more predictable for families.
-          </p>
-
-          <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-            <span className="rounded-full border bg-background/70 px-3 py-1">
-              {venues.length} results
-            </span>
-            <span className="rounded-full border bg-background/70 px-3 py-1">
-              Verified venues float to the top
-            </span>
-            <span className="rounded-full border bg-background/70 px-3 py-1">
-              Filters update instantly
-            </span>
+    <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-[calc(100dvh-4rem)]">
+      {/* Layout uses full viewport height */}
+      <div className="flex h-full flex-col gap-6">
+        {/* Banner */}
+        <section className="relative shrink-0 overflow-hidden rounded-3xl border bg-card">
+          <div className="absolute inset-0 opacity-[0.35]">
+            <div className="h-full w-full bg-gradient-to-br from-sky-200/60 via-transparent to-blue-100/60" />
           </div>
-        </div>
-      </section>
 
-      {/* 2-column layout */}
-      <section className="grid gap-5 lg:grid-cols-[360px_1fr]">
-        {/* Left: Filters */}
-        <aside className="lg:sticky lg:top-20 h-fit">
-          <VenueFilters />
-        </aside>
-
-        {/* Right: Results (scroll container on desktop) */}
-        <div className="rounded-3xl border bg-card/40">
-          <div className="flex items-center justify-between gap-3 px-5 py-4 border-b">
-            <div>
-              <div className="text-sm font-semibold">Venues</div>
-              <div className="text-xs text-muted-foreground">
-                Click a venue to view details & reviews.
+          <div className="relative p-6 sm:p-8">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+              <div className="max-w-2xl">
+                <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+                  Sensory-friendly venues
+                </h1>
+                <p className="mt-2 text-sm sm:text-base text-muted-foreground">
+                  Find places that work well for children with sensory needs —
+                  calm environments, sensory hours, and family-friendly spaces.
+                </p>
               </div>
-            </div>
 
-            <div className="text-xs text-muted-foreground">
-              Showing up to 50
+              <Link href="/submit" className="w-full sm:w-auto">
+                <Button variant="outline" className="w-full sm:w-auto">
+                  Submit a venue
+                </Button>
+              </Link>
             </div>
           </div>
+        </section>
 
-          {/* Limited scrolling happens inside this panel */}
-          <div className="max-h-[calc(100dvh-18.5rem)] overflow-auto">
-            {venues.length === 0 ? (
-              <div className="p-6">
-                <div className="rounded-2xl border bg-background/60 p-5">
-                  <div className="text-sm font-medium">No matches found</div>
-                  <div className="mt-1 text-sm text-muted-foreground">
-                    Try clearing one filter or searching a shorter venue name.
+        {/* Content area fills remaining height */}
+        <div className="grid flex-1 gap-6 lg:grid-cols-[360px_1fr] min-h-0">
+          {/* Filters (never scroll) */}
+          <aside className="shrink-0">
+            <VenueFilters />
+          </aside>
+
+          {/* Results panel (ONLY scrollable area) */}
+          <section className="relative min-h-0 rounded-3xl border bg-card">
+            {/* Header stays fixed */}
+            <div className="shrink-0 border-b px-5 py-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold">Venues</div>
+                  <div className="text-xs text-muted-foreground">
+                    Scroll inside this panel to browse results
                   </div>
                 </div>
+                <div className="text-xs text-muted-foreground">
+                  {venues.length} results
+                </div>
               </div>
-            ) : (
-              <ul className="divide-y">
-                {venues.map((v) => (
-                  <li key={v.id}>
-                    <Link
-                      href={`/venues/${v.id}`}
-                      className="block px-5 py-4 hover:bg-muted/40 transition-colors"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="font-medium truncate">{v.name}</div>
-                          <div className="mt-1 text-sm text-muted-foreground">
-                            {[v.city, v.postcode].filter(Boolean).join(" • ")}
+            </div>
+
+            {/* SCROLL CONTAINER */}
+            <div className="absolute inset-x-0 bottom-0 top-[72px] overflow-y-auto overscroll-contain">
+              <div className="space-y-3 p-4">
+                {venues.length === 0 ? (
+                  <div className="rounded-2xl border bg-background/60 p-6 text-center">
+                    <div className="text-base font-medium">No venues found</div>
+                    <div className="mt-1 text-sm text-muted-foreground">
+                      Try adjusting your filters or searching a shorter name.
+                    </div>
+                  </div>
+                ) : (
+                  venues.map((v) => {
+                    const src = (v as any).coverImageUrl || "/600x400.png";
+
+                    return (
+                      <Link
+                        key={v.id}
+                        href={`/venues/${v.id}`}
+                        className="group block overflow-hidden rounded-2xl border bg-background hover:bg-muted/30 transition"
+                      >
+                        <div className="flex flex-col sm:flex-row">
+                          <div className="relative h-44 w-full sm:h-36 sm:w-56 shrink-0">
+                            <Image
+                              src={src}
+                              alt={v.name}
+                              fill
+                              className="object-cover"
+                              sizes="(max-width: 640px) 100vw, 224px"
+                            />
                           </div>
 
-                          {!!v.tags?.length && (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {v.tags.slice(0, 5).map((t) => (
-                                <span
-                                  key={t}
-                                  className="rounded-full border bg-background/60 px-2 py-0.5 text-[11px] text-muted-foreground"
-                                >
-                                  {t}
-                                </span>
-                              ))}
-                              {v.tags.length > 5 && (
-                                <span className="text-[11px] text-muted-foreground">
-                                  +{v.tags.length - 5} more
+                          <div className="flex-1 p-4">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="font-medium text-base sm:text-lg truncate">
+                                  {v.name}
+                                </div>
+                                <div className="text-sm text-muted-foreground">
+                                  {[v.city, v.postcode]
+                                    .filter(Boolean)
+                                    .join(" • ")}
+                                </div>
+                              </div>
+
+                              {!!v.verifiedAt && (
+                                <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
+                                  Verified
                                 </span>
                               )}
                             </div>
-                          )}
-                        </div>
 
-                        {!!v.verifiedAt && (
-                          <span className="shrink-0 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-xs text-primary">
-                            Verified
-                          </span>
-                        )}
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                            {!!v.tags?.length && (
+                              <div className="mt-2 text-xs text-muted-foreground">
+                                {v.tags.slice(0, 6).join(" · ")}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </section>
         </div>
-      </section>
+      </div>
     </main>
   );
 }

@@ -2,9 +2,9 @@
 import { prisma } from "@/lib/prisma";
 
 type Filters = {
-  q?: string;
+  q?: string; // search venue name only (MVP)
   city?: string;
-  tags?: string[]; // ✅ multi
+  tags?: string[];
   sensoryHours?: "true" | "false";
   quietSpace?: "true" | "false";
 };
@@ -12,9 +12,9 @@ type Filters = {
 export async function listVenues(filters: Filters) {
   const and: any[] = [];
 
-  // ✅ Always exclude archived venues (and do NOT overwrite this later)
+  // ✅ Always exclude archived venues
   and.push({
-    OR: [{ archivedAt: null }, { archivedAt: { isSet: false } }], // Mongo-only isSet
+    OR: [{ archivedAt: null }, { archivedAt: { isSet: false } }],
   });
 
   if (filters.city) {
@@ -23,20 +23,19 @@ export async function listVenues(filters: Filters) {
 
   if (filters.tags?.length) {
     const tags = filters.tags.map((t) => t.toLowerCase());
-    // "hasSome" = match ANY selected tag. (Change to hasEvery if you want ALL.)
     and.push({ tags: { hasSome: tags } });
   }
 
   if (filters.q) {
-    const tokens = filters.q.trim().split(/\s+/).filter(Boolean).slice(0, 6);
-
-    // ✅ Each token must appear in the venue NAME (title) only
-    and.push({
-      AND: tokens.map((t) => ({
-        name: { contains: t, mode: "insensitive" },
-      })),
-    });
+    // ✅ NAME ONLY search (as you requested)
+    const q = filters.q.trim();
+    if (q) {
+      and.push({
+        name: { contains: q, mode: "insensitive" },
+      });
+    }
   }
+
   if (filters.sensoryHours) {
     and.push({
       sensory: { is: { sensoryHours: filters.sensoryHours === "true" } },
@@ -53,10 +52,7 @@ export async function listVenues(filters: Filters) {
 
   return prisma.venue.findMany({
     where,
-    orderBy: [
-      { verifiedAt: "desc" }, // ✅ verified first feels nice
-      { createdAt: "desc" },
-    ],
+    orderBy: [{ verifiedAt: "desc" }, { createdAt: "desc" }],
     take: 50,
     select: {
       id: true,
@@ -65,6 +61,7 @@ export async function listVenues(filters: Filters) {
       postcode: true,
       tags: true,
       verifiedAt: true,
+      coverImageUrl: true, // ✅ NEW
     },
   });
 }
