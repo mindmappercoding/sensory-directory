@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -8,8 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
+import ImageUploader from "@/app/submit/imageUploader";
 
 type SensoryLevel = "" | "VERY_LOW" | "LOW" | "MEDIUM" | "HIGH" | "VERY_HIGH";
+
+function uniq(arr: string[]) {
+  return Array.from(new Set(arr.filter(Boolean)));
+}
 
 export default function AdminVenueEditForm({ venue }: { venue: any }) {
   const router = useRouter();
@@ -28,6 +34,10 @@ export default function AdminVenueEditForm({ venue }: { venue: any }) {
     county: venue.county ?? "",
 
     tags: Array.isArray(venue.tags) ? venue.tags.join(", ") : "",
+
+    // ✅ images
+    coverImageUrl: venue.coverImageUrl ?? "",
+    imageUrls: Array.isArray(venue.imageUrls) ? venue.imageUrls : [],
 
     noiseLevel: (venue.sensory?.noiseLevel ?? "") as SensoryLevel,
     lighting: (venue.sensory?.lighting ?? "") as SensoryLevel,
@@ -72,6 +82,14 @@ export default function AdminVenueEditForm({ venue }: { venue: any }) {
     );
   }
 
+  function removeGalleryImage(url: string) {
+    setForm((p) => ({ ...p, imageUrls: (p.imageUrls ?? []).filter((u: string) => u !== url) }));
+  }
+
+  function clearCover() {
+    setForm((p) => ({ ...p, coverImageUrl: "" }));
+  }
+
   async function onSave(e: React.FormEvent) {
     e.preventDefault();
 
@@ -97,6 +115,10 @@ export default function AdminVenueEditForm({ venue }: { venue: any }) {
           county: form.county || null,
 
           tags,
+
+          // ✅ images
+          coverImageUrl: form.coverImageUrl || null,
+          imageUrls: uniq(form.imageUrls ?? []),
 
           sensory: {
             noiseLevel: form.noiseLevel || null,
@@ -128,8 +150,87 @@ export default function AdminVenueEditForm({ venue }: { venue: any }) {
     });
   }
 
+  const cover = form.coverImageUrl || "/600x400.png";
+  const gallery = uniq(form.imageUrls ?? []);
+
   return (
     <form onSubmit={onSave} className="space-y-6">
+      {/* ✅ Images */}
+      <div className="rounded-2xl border bg-card p-4 space-y-4">
+        <div>
+          <h3 className="text-lg font-medium">Images</h3>
+          <p className="text-sm text-muted-foreground">
+            Upload more images any time. Uploading only updates the form state — click{" "}
+            <span className="font-medium">Save changes</span> to persist.
+          </p>
+        </div>
+
+        {/* Current cover */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-medium">Current cover</div>
+            {!!form.coverImageUrl && (
+              <Button type="button" variant="outline" size="sm" onClick={clearCover}>
+                Remove cover
+              </Button>
+            )}
+          </div>
+
+          <div className="relative h-44 w-full overflow-hidden rounded-xl border">
+            <Image src={cover} alt="Cover" fill className="object-cover" sizes="(max-width: 768px) 100vw, 768px" />
+          </div>
+
+          <div className="text-xs text-muted-foreground break-all">
+            {form.coverImageUrl ? form.coverImageUrl : "No cover set (fallback used)."}
+          </div>
+        </div>
+
+        {/* Current gallery */}
+        <div className="space-y-2">
+          <div className="text-sm font-medium">Current gallery ({gallery.length})</div>
+
+          {gallery.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No gallery images yet.</div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+              {gallery.map((src) => (
+                <div key={src} className="group relative overflow-hidden rounded-xl border bg-background">
+                  <div className="relative h-24 w-full">
+                    <Image src={src} alt="Gallery image" fill className="object-cover" sizes="240px" />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => removeGalleryImage(src)}
+                    className="absolute right-2 top-2 rounded-md border bg-background/90 px-2 py-1 text-xs opacity-0 shadow-sm transition group-hover:opacity-100"
+                    aria-label="Remove image"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Upload more */}
+        <ImageUploader
+          onChange={(next) => {
+            setForm((p) => ({
+              ...p,
+              coverImageUrl: next.coverImageUrl ?? p.coverImageUrl,
+              imageUrls: uniq([...(p.imageUrls ?? []), ...(next.imageUrls ?? [])]),
+            }));
+            toast.success("Images uploaded (now click Save changes)");
+          }}
+        />
+
+        <div className="text-xs text-muted-foreground">
+          After saving: cover = {form.coverImageUrl ? "set" : "none"}, gallery ={" "}
+          {gallery.length} image(s)
+        </div>
+      </div>
+
       <div className="space-y-2">
         <Label>Name</Label>
         <Input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
@@ -137,7 +238,10 @@ export default function AdminVenueEditForm({ venue }: { venue: any }) {
 
       <div className="space-y-2">
         <Label>Description</Label>
-        <Textarea value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
+        <Textarea
+          value={form.description}
+          onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))}
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -203,10 +307,7 @@ export default function AdminVenueEditForm({ venue }: { venue: any }) {
 
       <div className="space-y-2">
         <Label>Sensory notes</Label>
-        <Textarea
-          value={form.sensoryNotes}
-          onChange={(e) => setForm((p) => ({ ...p, sensoryNotes: e.target.value }))}
-        />
+        <Textarea value={form.sensoryNotes} onChange={(e) => setForm((p) => ({ ...p, sensoryNotes: e.target.value }))} />
       </div>
 
       <h3 className="text-lg font-medium">Facilities</h3>
@@ -236,10 +337,7 @@ export default function AdminVenueEditForm({ venue }: { venue: any }) {
 
       <div className="space-y-2">
         <Label>Facilities notes</Label>
-        <Textarea
-          value={form.facilitiesNotes}
-          onChange={(e) => setForm((p) => ({ ...p, facilitiesNotes: e.target.value }))}
-        />
+        <Textarea value={form.facilitiesNotes} onChange={(e) => setForm((p) => ({ ...p, facilitiesNotes: e.target.value }))} />
       </div>
 
       <Button type="submit" disabled={pending}>

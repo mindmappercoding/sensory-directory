@@ -18,6 +18,10 @@ const UpdateVenueSchema = z.object({
 
   tags: z.array(z.string()).default([]),
 
+  // ✅ images (admin can update after creation)
+  coverImageUrl: z.string().url().optional().nullable(),
+  imageUrls: z.array(z.string().url()).optional().default([]),
+
   sensory: z
     .object({
       noiseLevel: SensoryLevel.optional().nullable(),
@@ -39,7 +43,16 @@ const UpdateVenueSchema = z.object({
       notes: z.string().max(600).optional().nullable(),
     })
     .optional(),
+
+  // ✅ decide how to handle gallery updates
+  // "REPLACE" = overwrite gallery
+  // "APPEND"  = add to existing (dedupe)
+  imageMode: z.enum(["REPLACE", "APPEND"]).optional().default("APPEND"),
 });
+
+function uniq(arr: string[]) {
+  return Array.from(new Set(arr.filter(Boolean)));
+}
 
 export async function PATCH(
   req: Request,
@@ -52,15 +65,26 @@ export async function PATCH(
 
   if (!parsed.success) {
     return NextResponse.json(
-      {
-        error: "Please fix the highlighted fields.",
-        issues: parsed.error.issues,
-      },
+      { error: "Please fix the highlighted fields.", issues: parsed.error.issues },
       { status: 400 }
     );
   }
 
   const input = parsed.data;
+
+  const existing = await prisma.venue.findUnique({
+    where: { id },
+    select: { imageUrls: true },
+  });
+
+  if (!existing) {
+    return NextResponse.json({ error: "Venue not found." }, { status: 404 });
+  }
+
+  const nextGallery =
+    input.imageMode === "REPLACE"
+      ? uniq(input.imageUrls ?? [])
+      : uniq([...(existing.imageUrls ?? []), ...(input.imageUrls ?? [])]);
 
   await prisma.venue.update({
     where: { id },
@@ -77,6 +101,10 @@ export async function PATCH(
       county: input.county ?? null,
 
       tags: input.tags.map((t) => t.toLowerCase()),
+
+      // ✅ images saved here
+      coverImageUrl: input.coverImageUrl ?? null,
+      imageUrls: nextGallery,
 
       sensory: input.sensory
         ? {

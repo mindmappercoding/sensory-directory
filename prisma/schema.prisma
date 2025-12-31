@@ -46,7 +46,9 @@ model Venue {
 
   tags        String[] // keep for MVP, but enforce in code
 
+  // ✅ images
   coverImageUrl String?
+  imageUrls     String[] // ✅ multiple gallery images
 
   // “trust + confidence” (great for list sorting)
   confidenceScore Int?     // 0-100
@@ -56,7 +58,7 @@ model Venue {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   verifiedAt  DateTime?
-  archivedAt DateTime?
+  archivedAt  DateTime?
 
   sensory     SensoryProfile?
   facilities  Facilities?
@@ -101,7 +103,6 @@ model Review {
   venueId       String   @db.ObjectId
   venue         Venue    @relation(fields: [venueId], references: [id])
 
-  // optional “who” (you can add auth later)
   authorName    String?
   authorId      String?
 
@@ -110,7 +111,6 @@ model Review {
   content       String?
   visitTimeHint String?
 
-  // sensory-specific signals (this is the gold)
   noiseLevel    SensoryLevel?
   lighting      SensoryLevel?
   crowding      SensoryLevel?

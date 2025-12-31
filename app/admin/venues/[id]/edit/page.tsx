@@ -21,7 +21,7 @@ export default async function AdminVenueEditPage({
   if (!venue) return notFound();
 
   return (
-    <main className="mx-auto max-w-3xl p-6 space-y-6">
+    <main className="mx-auto max-w-6xl p-6 space-y-6">
       <div>
         <h1 className="text-2xl font-semibold">Edit venue</h1>
         <p className="text-sm text-muted-foreground">

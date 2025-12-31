@@ -1,9 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 import { prisma } from "@/lib/prisma";
 import { ArchiveVenueButton } from "./ArchiveVenueButton";
 import { VerifyVenueButton } from "./VerifyVenueButton";
-import { UnarchiveVenueButton } from "./UnarchiveVenueButton"
-
+import { UnarchiveVenueButton } from "./UnarchiveVenueButton";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -26,62 +26,78 @@ export default async function AdminVenuesPage() {
       <div className="space-y-4">
         {venues.map((v) => {
           const archived = !!v.archivedAt;
+          const thumb = v.coverImageUrl || v.imageUrls?.[0] || "/600x400.png";
 
           return (
             <div
               key={v.id}
               className={[
-                "relative rounded-xl border p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4",
-                archived && "bg-red-50 border-red-200 opacity-80",
+                "relative overflow-hidden rounded-2xl border bg-card",
+                archived && "bg-red-50 border-red-200 opacity-90",
               ].join(" ")}
             >
               {archived && (
-                <span className="absolute top-2 right-2 rounded bg-red-600 px-2 py-0.5 text-xs text-white">
+                <span className="absolute top-2 right-2 z-10 rounded bg-red-600 px-2 py-0.5 text-xs text-white">
                   Archived
                 </span>
               )}
 
-              <div className="min-w-0">
-                <p className="font-medium truncate">{v.name}</p>
-                <p className="text-sm text-muted-foreground truncate">
-                  {[v.city, v.postcode].filter(Boolean).join(" • ")}
-                </p>
-
-                <div className="mt-1 text-xs space-x-2">
-                  {v.verifiedAt ? (
-                    <span className="text-emerald-600">Verified</span>
-                  ) : (
-                    <span className="text-amber-600">Unverified</span>
-                  )}
-                  <span>•</span>
-                  <span>{v.reviewCount} reviews</span>
+              <div className="flex flex-col sm:flex-row">
+                <div className="relative h-40 w-full sm:h-28 sm:w-44 shrink-0">
+                  <Image
+                    src={thumb}
+                    alt={v.name}
+                    fill
+                    className="object-cover"
+                    sizes="(max-width: 640px) 100vw, 176px"
+                  />
                 </div>
-              </div>
 
-              <div className="flex gap-2 shrink-0 flex-wrap justify-end">
-                {/* ✅ Admin view (not public) */}
-                <Link
-                  href={`/admin/venues/${v.id}`}
-                  className="rounded-lg border px-3 py-1 text-sm"
-                >
-                  View
-                </Link>
+                <div className="flex-1 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">{v.name}</p>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {[v.city, v.postcode].filter(Boolean).join(" • ")}
+                    </p>
 
-                <Link
-                  href={`/admin/venues/${v.id}/edit`}
-                  className="rounded-lg border px-3 py-1 text-sm"
-                >
-                  Edit
-                </Link>
+                    <div className="mt-1 text-xs space-x-2">
+                      {v.verifiedAt ? (
+                        <span className="text-emerald-600">Verified</span>
+                      ) : (
+                        <span className="text-amber-600">Unverified</span>
+                      )}
+                      <span>•</span>
+                      <span>{v.reviewCount} reviews</span>
+                      <span>•</span>
+                      <span>{(v.imageUrls?.length ?? 0) + (v.coverImageUrl ? 1 : 0)} images</span>
+                    </div>
+                  </div>
 
-                {archived ? (
-                  <UnarchiveVenueButton id={v.id} />
-                ) : (
-                  <>
-                    <VerifyVenueButton id={v.id} verified={!!v.verifiedAt} />
-                    <ArchiveVenueButton id={v.id} />
-                  </>
-                )}
+                  <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+                    <Link
+                      href={`/admin/venues/${v.id}`}
+                      className="rounded-lg border px-3 py-1 text-sm"
+                    >
+                      View
+                    </Link>
+
+                    <Link
+                      href={`/admin/venues/${v.id}/edit`}
+                      className="rounded-lg border px-3 py-1 text-sm"
+                    >
+                      Edit
+                    </Link>
+
+                    {archived ? (
+                      <UnarchiveVenueButton id={v.id} />
+                    ) : (
+                      <>
+                        <VerifyVenueButton id={v.id} verified={!!v.verifiedAt} />
+                        <ArchiveVenueButton id={v.id} />
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
             </div>
           );

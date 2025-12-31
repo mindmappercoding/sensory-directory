@@ -1,16 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useMemo, useState, useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+
+import {
+  venueSubmissionSchema,
+  VenueSubmissionInput,
+} from "@/lib/validators/venueSubmission";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
+import ImageUploader from "./imageUploader";
 
-const TAGS = [
+const AVAILABLE_TAGS = [
   "softplay",
   "cinema",
   "museum",
@@ -22,447 +28,502 @@ const TAGS = [
   "outdoor",
 ];
 
-type FieldErrors = Record<string, string[]>;
+const LEVELS = ["VERY_LOW", "LOW", "MEDIUM", "HIGH", "VERY_HIGH"] as const;
 
-function firstErr(errors: FieldErrors | null, key: string) {
-  const msg = errors?.[key]?.[0];
-  return msg ? String(msg) : null;
+function ErrorText({ msg }: { msg?: string }) {
+  if (!msg) return null;
+  return <div className="mt-1 text-xs text-red-600">{msg}</div>;
+}
+
+function levelLabel(v: string) {
+  // nicer labels
+  switch (v) {
+    case "VERY_LOW":
+      return "Very low";
+    case "LOW":
+      return "Low";
+    case "MEDIUM":
+      return "Medium";
+    case "HIGH":
+      return "High";
+    case "VERY_HIGH":
+      return "Very high";
+    default:
+      return v.replaceAll("_", " ");
+  }
 }
 
 export default function SubmitVenueForm() {
-  const router = useRouter();
-  const [pending, setPending] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [serverError, setServerError] = useState<string | null>(null);
 
-  const [formError, setFormError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<FieldErrors | null>(null);
-  const [okMsg, setOkMsg] = useState<string | null>(null);
+  const form = useForm<VenueSubmissionInput>({
+    resolver: zodResolver(venueSubmissionSchema),
+    defaultValues: {
+      proposedName: "",
+      description: "",
+      website: "",
+      phone: "",
+      address1: "",
+      address2: "",
+      city: "",
+      postcode: "",
+      county: "",
+      tags: [],
 
-  const [form, setForm] = useState({
-    proposedName: "",
-    website: "",
-    phone: "",
-    description: "",
-    address1: "",
-    address2: "",
-    city: "",
-    postcode: "",
-    county: "",
-    tags: [] as string[],
+      // ✅ images
+      coverImageUrl: "",
+      imageUrls: [],
 
-    // sensory
-    noiseLevel: "" as "" | "VERY_LOW" | "LOW" | "MEDIUM" | "HIGH" | "VERY_HIGH",
-    lighting: "" as "" | "VERY_LOW" | "LOW" | "MEDIUM" | "HIGH" | "VERY_HIGH",
-    crowding: "" as "" | "VERY_LOW" | "LOW" | "MEDIUM" | "HIGH" | "VERY_HIGH",
-    quietSpace: false,
-    sensoryHours: false,
-    sensoryNotes: "",
-
-    // facilities
-    parking: false,
-    accessibleToilet: false,
-    babyChange: false,
-    wheelchairAccess: false,
-    staffTrained: false,
-    facilitiesNotes: "",
+      sensory: {
+        noiseLevel: undefined,
+        lighting: undefined,
+        crowding: undefined,
+        quietSpace: undefined,
+        sensoryHours: undefined,
+        notes: "",
+      },
+      facilities: {
+        parking: undefined,
+        accessibleToilet: undefined,
+        babyChange: undefined,
+        wheelchairAccess: undefined,
+        staffTrained: undefined,
+        notes: "",
+      },
+    },
+    mode: "onSubmit",
   });
 
-  function SensorySelect({
-    label,
-    value,
-    onChange,
-  }: {
-    label: string;
-    value: string;
-    onChange: (v: string) => void;
-  }) {
-    return (
-      <div className="space-y-2">
-        <Label>{label}</Label>
-        <select
-          className="w-full rounded-md border bg-background px-3 py-2 text-sm"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-        >
-          <option value="">Not specified</option>
-          <option value="VERY_LOW">Very low</option>
-          <option value="LOW">Low</option>
-          <option value="MEDIUM">Medium</option>
-          <option value="HIGH">High</option>
-          <option value="VERY_HIGH">Very high</option>
-        </select>
-      </div>
-    );
-  }
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    formState: { errors },
+  } = form;
 
-  function CheckboxRow({ label, checked, onChange }: any) {
-    return (
-      <label className="flex items-center gap-2 text-sm">
-        <Checkbox
-          checked={checked}
-          onCheckedChange={(v) => onChange(Boolean(v))}
-        />
-        {label}
-      </label>
-    );
-  }
+  const selectedTags = watch("tags") ?? [];
+  const sensory = watch("sensory");
+  const facilities = watch("facilities");
+
+  const tagSet = useMemo(() => new Set(selectedTags), [selectedTags]);
 
   function toggleTag(tag: string) {
-    setForm((p) => ({
-      ...p,
-      tags: p.tags.includes(tag)
-        ? p.tags.filter((t) => t !== tag)
-        : [...p.tags, tag],
-    }));
+    const next = tagSet.has(tag)
+      ? selectedTags.filter((t) => t !== tag)
+      : [...selectedTags, tag];
+    setValue("tags", next, { shouldValidate: true, shouldDirty: true });
   }
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setPending(true);
-    setFormError(null);
-    setFieldErrors(null);
-    setOkMsg(null);
+  async function onSubmit(values: VenueSubmissionInput) {
+    setServerError(null);
 
-    const res = await fetch("/api/submissions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type: "NEW_VENUE",
-        proposedName: form.proposedName,
-        payload: {
-          website: form.website || undefined,
-          phone: form.phone || undefined,
-          description: form.description || undefined,
-          address1: form.address1 || undefined,
-          address2: form.address2 || undefined,
-          city: form.city,
-          postcode: form.postcode,
-          county: form.county || undefined,
-          tags: form.tags,
+    startTransition(async () => {
+      try {
+        const res = await fetch("/api/submissions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "NEW_VENUE",
+            proposedName: values.proposedName,
+            payload: values,
+          }),
+        });
 
-          sensory: {
-            noiseLevel: form.noiseLevel || undefined,
-            lighting: form.lighting || undefined,
-            crowding: form.crowding || undefined,
-            quietSpace: form.quietSpace,
-            sensoryHours: form.sensoryHours,
-            notes: form.sensoryNotes || undefined,
-          },
+        const json = await res.json();
+        if (!res.ok || !json?.ok) {
+          const msg =
+            json?.error ??
+            "Something went wrong. Please check the form and try again.";
+          setServerError(msg);
+          toast.error(msg);
+          return;
+        }
 
-          facilities: {
-            parking: form.parking,
-            accessibleToilet: form.accessibleToilet,
-            babyChange: form.babyChange,
-            wheelchairAccess: form.wheelchairAccess,
-            staffTrained: form.staffTrained,
-            notes: form.facilitiesNotes || undefined,
-          },
-        },
-      }),
+        toast.success("Submitted! 🎉", {
+          description: "Thanks — we’ll review it before it goes live.",
+        });
+
+        form.reset();
+      } catch (e: any) {
+        const msg = e?.message ?? "Server error";
+        setServerError(msg);
+        toast.error(msg);
+      }
     });
-
-    const data = await res.json().catch(() => null);
-
-    if (!res.ok) {
-      setPending(false);
-
-      // ✅ Expect: { error: string, issues?: { fieldErrors?: Record<string, string[]> } }
-      setFormError(data?.error ?? "Something went wrong.");
-
-      const fe: FieldErrors | null = data?.issues?.fieldErrors ?? null;
-      if (fe) setFieldErrors(fe);
-
-      return;
-    }
-
-    setPending(false);
-    toast.success("Venue submitted for review", {
-      description: "Thanks for helping build the sensory directory 💙",
-    });
-    setTimeout(() => router.push("/venues"), 900);
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-6">
-      {formError && (
-        <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3 text-sm">
-          {formError}
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {/* IMAGES */}
+      <div className="rounded-3xl border bg-card p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">Photos</div>
+            <div className="text-xs text-muted-foreground">
+              Optional, but super helpful for parents.
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4">
+          <ImageUploader
+            onChange={(next) => {
+              if (typeof next.coverImageUrl === "string") {
+                setValue("coverImageUrl", next.coverImageUrl, {
+                  shouldDirty: true,
+                });
+              }
+              setValue("imageUrls", next.imageUrls ?? [], { shouldDirty: true });
+
+              toast.success("Images uploaded", {
+                description: "They’ll be included in your submission.",
+              });
+            }}
+          />
+          <ErrorText msg={errors.coverImageUrl?.message as any} />
+          <ErrorText msg={errors.imageUrls?.message as any} />
+        </div>
+      </div>
+
+      {/* VENUE INFO */}
+      <div className="rounded-3xl border bg-card p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">Venue details</div>
+            <div className="text-xs text-muted-foreground">
+              The basics so families can find it easily.
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4">
+          <div>
+            <div className="text-sm font-medium">Venue name *</div>
+            <Input
+              placeholder="e.g. Calm Kids Soft Play"
+              {...register("proposedName")}
+            />
+            <ErrorText msg={errors.proposedName?.message} />
+          </div>
+
+          <div>
+            <div className="text-sm font-medium">Description</div>
+            <Textarea
+              placeholder="What makes it good for sensory needs?"
+              className="min-h-24"
+              {...register("description")}
+            />
+            <ErrorText msg={errors.description?.message} />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <div className="text-sm font-medium">Website</div>
+              <Input placeholder="https://…" {...register("website")} />
+              <ErrorText msg={errors.website?.message as any} />
+            </div>
+
+            <div>
+              <div className="text-sm font-medium">Phone</div>
+              <Input placeholder="Optional" {...register("phone")} />
+              <ErrorText msg={errors.phone?.message} />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <div className="text-sm font-medium">Address line 1</div>
+              <Input placeholder="Optional" {...register("address1")} />
+              <ErrorText msg={errors.address1?.message} />
+            </div>
+
+            <div>
+              <div className="text-sm font-medium">Address line 2</div>
+              <Input placeholder="Optional" {...register("address2")} />
+              <ErrorText msg={errors.address2?.message} />
+            </div>
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div>
+              <div className="text-sm font-medium">City *</div>
+              <Input placeholder="e.g. Otley" {...register("city")} />
+              <ErrorText msg={errors.city?.message} />
+            </div>
+
+            <div>
+              <div className="text-sm font-medium">Postcode *</div>
+              <Input placeholder="e.g. LS21…" {...register("postcode")} />
+              <ErrorText msg={errors.postcode?.message} />
+            </div>
+
+            <div>
+              <div className="text-sm font-medium">County</div>
+              <Input placeholder="e.g. West Yorkshire" {...register("county")} />
+              <ErrorText msg={errors.county?.message} />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* TAGS */}
+      <div className="rounded-3xl border bg-card p-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-sm font-semibold">Tags *</div>
+            <div className="text-xs text-muted-foreground">
+              Pick at least one — these power filtering.
+            </div>
+          </div>
+          {selectedTags.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-8 px-2 text-xs"
+              onClick={() => setValue("tags", [], { shouldDirty: true })}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {AVAILABLE_TAGS.map((t) => {
+            const selected = selectedTags.includes(t);
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => toggleTag(t)}
+                className={[
+                  "rounded-full border px-3 py-1 text-xs transition",
+                  selected
+                    ? "bg-blue-600 text-white border-blue-600"
+                    : "bg-background hover:bg-muted/60",
+                ].join(" ")}
+                aria-pressed={selected}
+              >
+                {t}
+              </button>
+            );
+          })}
+        </div>
+
+        <ErrorText msg={errors.tags?.message as any} />
+
+        {selectedTags.length > 0 && (
+          <div className="mt-2 text-xs text-muted-foreground">
+            Selected: {selectedTags.join(", ")}
+          </div>
+        )}
+      </div>
+
+      {/* SENSORY */}
+      <div className="rounded-3xl border bg-card p-5">
+        <div>
+          <div className="text-sm font-semibold">Sensory environment</div>
+          <div className="text-xs text-muted-foreground">
+            Optional — “Not sure” is totally fine.
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+          <div>
+            <div className="text-sm font-medium">Noise level</div>
+            <select
+              className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background"
+              value={sensory?.noiseLevel ?? ""}
+              onChange={(e) =>
+                setValue(
+                  "sensory.noiseLevel",
+                  (e.target.value || undefined) as any,
+                  { shouldDirty: true }
+                )
+              }
+            >
+              <option value="">Not sure</option>
+              {LEVELS.map((l) => (
+                <option key={l} value={l}>
+                  {levelLabel(l)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <div className="text-sm font-medium">Lighting</div>
+            <select
+              className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background"
+              value={sensory?.lighting ?? ""}
+              onChange={(e) =>
+                setValue(
+                  "sensory.lighting",
+                  (e.target.value || undefined) as any,
+                  { shouldDirty: true }
+                )
+              }
+            >
+              <option value="">Not sure</option>
+              {LEVELS.map((l) => (
+                <option key={l} value={l}>
+                  {levelLabel(l)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <div className="text-sm font-medium">Crowding</div>
+            <select
+              className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background"
+              value={sensory?.crowding ?? ""}
+              onChange={(e) =>
+                setValue(
+                  "sensory.crowding",
+                  (e.target.value || undefined) as any,
+                  { shouldDirty: true }
+                )
+              }
+            >
+              <option value="">Not sure</option>
+              {LEVELS.map((l) => (
+                <option key={l} value={l}>
+                  {levelLabel(l)}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={!!sensory?.quietSpace}
+              onCheckedChange={(v) =>
+                setValue("sensory.quietSpace", !!v, { shouldDirty: true })
+              }
+            />
+            Quiet space available
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={!!sensory?.sensoryHours}
+              onCheckedChange={(v) =>
+                setValue("sensory.sensoryHours", !!v, { shouldDirty: true })
+              }
+            />
+            Sensory hours offered
+          </label>
+        </div>
+
+        <div className="mt-4">
+          <div className="text-sm font-medium">Sensory notes</div>
+          <Textarea
+            className="min-h-20"
+            placeholder="Anything helpful… (music volume, staff awareness, quiet corner, etc)"
+            value={sensory?.notes ?? ""}
+            onChange={(e) =>
+              setValue("sensory.notes", e.target.value, { shouldDirty: true })
+            }
+          />
+          <ErrorText msg={(errors.sensory as any)?.notes?.message} />
+        </div>
+      </div>
+
+      {/* FACILITIES */}
+      <div className="rounded-3xl border bg-card p-5">
+        <div>
+          <div className="text-sm font-semibold">Facilities</div>
+          <div className="text-xs text-muted-foreground">Optional</div>
+        </div>
+
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={!!facilities?.parking}
+              onCheckedChange={(v) =>
+                setValue("facilities.parking", !!v, { shouldDirty: true })
+              }
+            />
+            Parking
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={!!facilities?.accessibleToilet}
+              onCheckedChange={(v) =>
+                setValue("facilities.accessibleToilet", !!v, {
+                  shouldDirty: true,
+                })
+              }
+            />
+            Accessible toilet
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={!!facilities?.babyChange}
+              onCheckedChange={(v) =>
+                setValue("facilities.babyChange", !!v, { shouldDirty: true })
+              }
+            />
+            Baby changing
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={!!facilities?.wheelchairAccess}
+              onCheckedChange={(v) =>
+                setValue("facilities.wheelchairAccess", !!v, {
+                  shouldDirty: true,
+                })
+              }
+            />
+            Wheelchair access
+          </label>
+
+          <label className="flex items-center gap-2 text-sm">
+            <Checkbox
+              checked={!!facilities?.staffTrained}
+              onCheckedChange={(v) =>
+                setValue("facilities.staffTrained", !!v, { shouldDirty: true })
+              }
+            />
+            Staff trained / supportive
+          </label>
+        </div>
+
+        <div className="mt-4">
+          <div className="text-sm font-medium">Facilities notes</div>
+          <Textarea
+            className="min-h-20"
+            placeholder="Any extra details…"
+            value={facilities?.notes ?? ""}
+            onChange={(e) =>
+              setValue("facilities.notes", e.target.value, { shouldDirty: true })
+            }
+          />
+          <ErrorText msg={(errors.facilities as any)?.notes?.message} />
+        </div>
+      </div>
+
+      {serverError && (
+        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {serverError}
         </div>
       )}
 
-      <div className="space-y-2">
-        <Label htmlFor="name">Venue name *</Label>
-        <Input
-          id="name"
-          value={form.proposedName}
-          onChange={(e) =>
-            setForm((p) => ({ ...p, proposedName: e.target.value }))
-          }
-          placeholder="e.g. Calm Kids Soft Play"
-          required
-          aria-invalid={!!firstErr(fieldErrors, "proposedName")}
-        />
-        {firstErr(fieldErrors, "proposedName") && (
-          <p className="text-sm text-destructive">
-            {firstErr(fieldErrors, "proposedName")}
-          </p>
-        )}
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="website">Website</Label>
-          <Input
-            id="website"
-            value={form.website}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, website: e.target.value }))
-            }
-            placeholder="https://..."
-            aria-invalid={!!firstErr(fieldErrors, "website")}
-          />
-          {firstErr(fieldErrors, "website") && (
-            <p className="text-sm text-destructive">
-              {firstErr(fieldErrors, "website")}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="phone">Phone</Label>
-          <Input
-            id="phone"
-            value={form.phone}
-            onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))}
-            placeholder="Optional"
-            aria-invalid={!!firstErr(fieldErrors, "phone")}
-          />
-          {firstErr(fieldErrors, "phone") && (
-            <p className="text-sm text-destructive">
-              {firstErr(fieldErrors, "phone")}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="desc">Short description</Label>
-        <Textarea
-          id="desc"
-          value={form.description}
-          onChange={(e) =>
-            setForm((p) => ({ ...p, description: e.target.value }))
-          }
-          placeholder="What makes it good for sensory needs?"
-          aria-invalid={!!firstErr(fieldErrors, "description")}
-        />
-        {firstErr(fieldErrors, "description") && (
-          <p className="text-sm text-destructive">
-            {firstErr(fieldErrors, "description")}
-          </p>
-        )}
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="city">City</Label>
-          <Input
-            id="city"
-            value={form.city}
-            onChange={(e) => setForm((p) => ({ ...p, city: e.target.value }))}
-            placeholder="e.g. Leeds"
-            aria-invalid={!!firstErr(fieldErrors, "city")}
-          />
-          {firstErr(fieldErrors, "city") && (
-            <p className="text-sm text-destructive">
-              {firstErr(fieldErrors, "city")}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="postcode">Postcode</Label>
-          <Input
-            id="postcode"
-            value={form.postcode}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, postcode: e.target.value }))
-            }
-            placeholder="e.g. LS1 2AB"
-            aria-invalid={!!firstErr(fieldErrors, "postcode")}
-          />
-          {firstErr(fieldErrors, "postcode") && (
-            <p className="text-sm text-destructive">
-              {firstErr(fieldErrors, "postcode")}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <div className="space-y-2">
-          <Label htmlFor="address1">Address line 1</Label>
-          <Input
-            id="address1"
-            value={form.address1}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, address1: e.target.value }))
-            }
-            aria-invalid={!!firstErr(fieldErrors, "address1")}
-          />
-          {firstErr(fieldErrors, "address1") && (
-            <p className="text-sm text-destructive">
-              {firstErr(fieldErrors, "address1")}
-            </p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="address2">Address line 2</Label>
-          <Input
-            id="address2"
-            value={form.address2}
-            onChange={(e) =>
-              setForm((p) => ({ ...p, address2: e.target.value }))
-            }
-            aria-invalid={!!firstErr(fieldErrors, "address2")}
-          />
-          {firstErr(fieldErrors, "address2") && (
-            <p className="text-sm text-destructive">
-              {firstErr(fieldErrors, "address2")}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="county">County</Label>
-        <Input
-          id="county"
-          value={form.county}
-          onChange={(e) => setForm((p) => ({ ...p, county: e.target.value }))}
-          placeholder="e.g. West Yorkshire"
-        />
-      </div>
-
-      <h3 className="text-lg font-medium">Sensory environment</h3>
-
-      <div className="grid gap-4 sm:grid-cols-3">
-        <SensorySelect
-          label="Noise level"
-          value={form.noiseLevel}
-          onChange={(v) => setForm((p) => ({ ...p, noiseLevel: v as any }))}
-        />
-        <SensorySelect
-          label="Lighting"
-          value={form.lighting}
-          onChange={(v) => setForm((p) => ({ ...p, lighting: v as any }))}
-        />
-        <SensorySelect
-          label="Crowding"
-          value={form.crowding}
-          onChange={(v) => setForm((p) => ({ ...p, crowding: v as any }))}
-        />
-      </div>
-
-      <h3 className="text-lg font-medium">Facilities</h3>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <CheckboxRow
-          label="Parking available"
-          checked={form.parking}
-          onChange={(v: any) => setForm((p) => ({ ...p, parking: v }))}
-        />
-        <CheckboxRow
-          label="Accessible toilet"
-          checked={form.accessibleToilet}
-          onChange={(v: any) => setForm((p) => ({ ...p, accessibleToilet: v }))}
-        />
-        <CheckboxRow
-          label="Baby changing"
-          checked={form.babyChange}
-          onChange={(v: any) => setForm((p) => ({ ...p, babyChange: v }))}
-        />
-        <CheckboxRow
-          label="Wheelchair access"
-          checked={form.wheelchairAccess}
-          onChange={(v: any) => setForm((p) => ({ ...p, wheelchairAccess: v }))}
-        />
-        <CheckboxRow
-          label="Staff trained in SEN"
-          checked={form.staffTrained}
-          onChange={(v: any) => setForm((p) => ({ ...p, staffTrained: v }))}
-        />
-      </div>
-
-      <div className="space-y-2">
-        <Label>Tags</Label>
-        <div className="flex flex-wrap gap-2">
-          {TAGS.map((t) => (
-            <Button
-              key={t}
-              type="button"
-              variant={form.tags.includes(t) ? "default" : "outline"}
-              size="sm"
-              onClick={() => toggleTag(t)}
-            >
-              {t}
-            </Button>
-          ))}
-        </div>
-        {firstErr(fieldErrors, "tags") && (
-          <p className="text-sm text-destructive">
-            {firstErr(fieldErrors, "tags")}
-          </p>
-        )}
-        <p className="text-xs text-muted-foreground">
-          Pick a few that help parents filter quickly.
-        </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox
-            checked={form.sensoryHours}
-            onCheckedChange={(v) =>
-              setForm((p) => ({ ...p, sensoryHours: Boolean(v) }))
-            }
-          />
-          Has sensory hours
-        </label>
-
-        <label className="flex items-center gap-2 text-sm">
-          <Checkbox
-            checked={form.quietSpace}
-            onCheckedChange={(v) =>
-              setForm((p) => ({ ...p, quietSpace: Boolean(v) }))
-            }
-          />
-          Has a quiet space
-        </label>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="notes">Extra sensory notes</Label>
-        <Textarea
-          id="notes"
-          value={form.sensoryNotes}
-          onChange={(e) =>
-            setForm((p) => ({ ...p, sensoryNotes: e.target.value }))
-          }
-          placeholder="Anything that would reduce anxiety for parents? (queues, staff understanding, lighting, noise, etc)"
-          aria-invalid={!!firstErr(fieldErrors, "sensory.notes")}
-        />
-        {/* sensory.* errors may come back nested; simplest is show a generic sensory error if present */}
-        {firstErr(fieldErrors, "sensory") && (
-          <p className="text-sm text-destructive">
-            {firstErr(fieldErrors, "sensory")}
-          </p>
-        )}
-      </div>
-
-      <Button type="submit" disabled={pending}>
-        {pending ? "Submitting..." : "Submit for review"}
+      <Button type="submit" disabled={isPending} className="w-full">
+        {isPending ? "Submitting…" : "Submit venue"}
       </Button>
+
+      <div className="text-xs text-muted-foreground">
+        Tip: upload images first, then submit — the URLs are included in the
+        payload automatically.
+      </div>
     </form>
   );
 }
