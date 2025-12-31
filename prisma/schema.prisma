@@ -46,6 +46,8 @@ model Venue {
 
   tags        String[] // keep for MVP, but enforce in code
 
+  coverImageUrl String?
+
   // “trust + confidence” (great for list sorting)
   confidenceScore Int?     // 0-100
   reviewCount     Int      @default(0)

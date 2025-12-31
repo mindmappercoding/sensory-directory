@@ -38,7 +38,6 @@ export default function VenueFilters() {
   const sp = useSearchParams();
   const [isPending, startTransition] = useTransition();
 
-  // Controlled inputs
   const [q, setQ] = useState("");
   const [city, setCity] = useState("");
   const [tags, setTags] = useState<string[]>([]);
@@ -54,23 +53,7 @@ export default function VenueFilters() {
     setQuietSpace(sp.get("quietSpace") ?? "");
   }, [sp]);
 
-  // Debounce search typing so it feels "live" but not spammy
   const qDebounced = useDebouncedValue(q, 250);
-
-  useEffect(() => {
-    // ✅ Guard: don’t push if URL already matches debounced value
-    if ((sp.get("q") ?? "") === qDebounced) return;
-
-    const params = new URLSearchParams(sp.toString());
-
-    if (qDebounced) params.set("q", qDebounced);
-    else params.delete("q");
-
-    router.replace(`${pathname}?${params.toString()}`, {
-      scroll: false,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qDebounced]);
 
   const urlString = useMemo(() => sp.toString(), [sp]);
 
@@ -99,11 +82,16 @@ export default function VenueFilters() {
     setParam(params, "quietSpace", next.quietSpace ?? quietSpace);
 
     startTransition(() => {
-      // ✅ replace = feels real-time (no history spam)
-      router.replace(`${pathname}?${params.toString()}`);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     });
   }
 
+  // Auto-apply when debounced q changes
+  useEffect(() => {
+    if ((sp.get("q") ?? "") === qDebounced) return;
+    pushState({ q: qDebounced });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qDebounced]);
 
   function toggleTag(tag: string) {
     const next = tags.includes(tag)
@@ -119,23 +107,44 @@ export default function VenueFilters() {
     setTags([]);
     setSensoryHours("");
     setQuietSpace("");
-    startTransition(() => router.replace(pathname));
+    startTransition(() => router.replace(pathname, { scroll: false }));
   }
 
+  const activeCount =
+    (qDebounced ? 1 : 0) +
+    (city.trim() ? 1 : 0) +
+    (tags.length ? 1 : 0) +
+    (sensoryHours ? 1 : 0) +
+    (quietSpace ? 1 : 0);
+
   return (
-    <div className="mt-4 rounded-xl border p-4 space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2">
+    <div className="rounded-3xl border bg-card/60 p-4 sm:p-5 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold">Filter & search</div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            Search is <span className="text-foreground/90">venue name only</span>.
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          {activeCount > 0 && (
+            <span className="rounded-full border bg-background/70 px-2.5 py-1 text-[11px] text-muted-foreground">
+              {activeCount} active
+            </span>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-3">
         <label className="text-sm">
           <div className="mb-1 font-medium">Search</div>
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Search venue name…"
-            className="w-full rounded-md border px-3 py-2"
+            placeholder="e.g. Cineworld, Soft Play..."
+            className="w-full rounded-xl border bg-background/70 px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30"
           />
-          <div className="mt-1 text-xs text-muted-foreground">
-            Searches venue names only.
-          </div>
         </label>
 
         <label className="text-sm">
@@ -147,7 +156,7 @@ export default function VenueFilters() {
               pushState({ city: e.target.value });
             }}
             placeholder="e.g. Leeds"
-            className="w-full rounded-md border px-3 py-2"
+            className="w-full rounded-xl border bg-background/70 px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30"
           />
         </label>
 
@@ -160,7 +169,7 @@ export default function VenueFilters() {
                 setSensoryHours(e.target.value);
                 pushState({ sensoryHours: e.target.value });
               }}
-              className="w-full rounded-md border px-3 py-2"
+              className="w-full rounded-xl border bg-background/70 px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="">Any</option>
               <option value="true">Yes</option>
@@ -176,7 +185,7 @@ export default function VenueFilters() {
                 setQuietSpace(e.target.value);
                 pushState({ quietSpace: e.target.value });
               }}
-              className="w-full rounded-md border px-3 py-2"
+              className="w-full rounded-xl border bg-background/70 px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30"
             >
               <option value="">Any</option>
               <option value="true">Yes</option>
@@ -196,7 +205,7 @@ export default function VenueFilters() {
                 setTags([]);
                 pushState({ tags: [] });
               }}
-              className="text-xs underline text-muted-foreground"
+              className="text-xs text-primary hover:underline"
             >
               Clear tags
             </button>
@@ -212,8 +221,10 @@ export default function VenueFilters() {
                 type="button"
                 onClick={() => toggleTag(t)}
                 className={[
-                  "rounded-full border px-3 py-1 text-xs",
-                  selected ? "bg-muted" : "hover:bg-muted/50",
+                  "rounded-full border px-3 py-1.5 text-xs transition-colors",
+                  selected
+                    ? "bg-primary text-primary-foreground border-primary/30"
+                    : "bg-background/70 hover:bg-muted/60",
                 ].join(" ")}
                 aria-pressed={selected}
               >
@@ -235,7 +246,7 @@ export default function VenueFilters() {
           type="button"
           onClick={clear}
           disabled={isPending}
-          className="rounded-md border px-3 py-2 text-sm"
+          className="rounded-xl border bg-background/70 px-3 py-2 text-sm hover:bg-muted/60 disabled:opacity-60"
         >
           Clear all
         </button>
