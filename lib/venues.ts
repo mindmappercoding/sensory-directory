@@ -1,59 +1,62 @@
+// lib/venues.ts
 import { prisma } from "@/lib/prisma";
 
 type Filters = {
   q?: string;
   city?: string;
-  tag?: string;
+  tags?: string[]; // ✅ multi
   sensoryHours?: "true" | "false";
   quietSpace?: "true" | "false";
 };
 
 export async function listVenues(filters: Filters) {
-  const where: any = {
-    OR: [
-      { archivedAt: null },
-      { archivedAt: { isSet: false } }, // Mongo-only
-    ],
-  };
+  const and: any[] = [];
+
+  // ✅ Always exclude archived venues (and do NOT overwrite this later)
+  and.push({
+    OR: [{ archivedAt: null }, { archivedAt: { isSet: false } }], // Mongo-only isSet
+  });
 
   if (filters.city) {
-    where.city = { equals: filters.city, mode: "insensitive" };
+    and.push({ city: { equals: filters.city.trim(), mode: "insensitive" } });
   }
 
-  if (filters.tag) {
-    where.tags = { has: filters.tag.toLowerCase() };
+  if (filters.tags?.length) {
+    const tags = filters.tags.map((t) => t.toLowerCase());
+    // "hasSome" = match ANY selected tag. (Change to hasEvery if you want ALL.)
+    and.push({ tags: { hasSome: tags } });
   }
 
   if (filters.q) {
-    const q = filters.q;
-    where.OR = [
-      { name: { contains: q, mode: "insensitive" } },
-      { description: { contains: q, mode: "insensitive" } },
-      { city: { contains: q, mode: "insensitive" } },
-      { postcode: { contains: q, mode: "insensitive" } },
-      { tags: { has: q.toLowerCase() } },
-    ];
-  }
+    const tokens = filters.q.trim().split(/\s+/).filter(Boolean).slice(0, 6);
 
+    // ✅ Each token must appear in the venue NAME (title) only
+    and.push({
+      AND: tokens.map((t) => ({
+        name: { contains: t, mode: "insensitive" },
+      })),
+    });
+  }
   if (filters.sensoryHours) {
-    where.sensory = {
-      is: { sensoryHours: filters.sensoryHours === "true" },
-    };
+    and.push({
+      sensory: { is: { sensoryHours: filters.sensoryHours === "true" } },
+    });
   }
 
   if (filters.quietSpace) {
-    where.sensory = {
-      ...(where.sensory ?? {}),
-      is: {
-        ...(where.sensory?.is ?? {}),
-        quietSpace: filters.quietSpace === "true",
-      },
-    };
+    and.push({
+      sensory: { is: { quietSpace: filters.quietSpace === "true" } },
+    });
   }
+
+  const where = and.length ? { AND: and } : {};
 
   return prisma.venue.findMany({
     where,
-    orderBy: { createdAt: "desc" },
+    orderBy: [
+      { verifiedAt: "desc" }, // ✅ verified first feels nice
+      { createdAt: "desc" },
+    ],
     take: 50,
     select: {
       id: true,

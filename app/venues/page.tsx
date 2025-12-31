@@ -1,3 +1,4 @@
+// app/venues/page.tsx
 import { listVenues } from "@/lib/venues";
 import VenueFilters from "./VenueFilters";
 import { Button } from "@/components/ui/button";
@@ -7,6 +8,15 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 type SearchParams = Record<string, string | string[] | undefined>;
+
+function parseTagsParam(val: unknown): string[] | undefined {
+  if (typeof val !== "string" || !val.trim()) return undefined;
+  const tags = val
+    .split(",")
+    .map((t) => t.trim())
+    .filter(Boolean);
+  return tags.length ? tags : undefined;
+}
 
 export default async function VenuesPage({
   searchParams,
@@ -18,7 +28,7 @@ export default async function VenuesPage({
   const filters = {
     q: typeof sp.q === "string" ? sp.q : undefined,
     city: typeof sp.city === "string" ? sp.city : undefined,
-    tag: typeof sp.tag === "string" ? sp.tag : undefined,
+    tags: parseTagsParam(sp.tags),
     sensoryHours:
       typeof sp.sensoryHours === "string"
         ? (sp.sensoryHours as "true" | "false")
