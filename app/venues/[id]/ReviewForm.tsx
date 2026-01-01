@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, Star, LogIn, LogOut } from "lucide-react";
+import { ChevronDown, Star, LogIn, LogOut, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,20 @@ const LEVELS = [
 
 type Level = "" | "VERY_LOW" | "LOW" | "MEDIUM" | "HIGH" | "VERY_HIGH";
 
+type MyReview = {
+  id: string;
+  authorName: string | null;
+  rating: number;
+  title: string | null;
+  content: string | null;
+  visitTimeHint: string | null;
+  noiseLevel: Level | null;
+  lighting: Level | null;
+  crowding: Level | null;
+  quietSpace: boolean | null;
+  sensoryHours: boolean | null;
+};
+
 export function ReviewForm({ venueId }: { venueId: string }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
@@ -47,10 +61,9 @@ export function ReviewForm({ venueId }: { venueId: string }) {
   // Collapsible state
   const [open, setOpen] = React.useState(false);
 
-  // If user signs out while open, close it
-  React.useEffect(() => {
-    if (!authed && open) setOpen(false);
-  }, [authed, open]);
+  // Existing review (if any)
+  const [myReview, setMyReview] = React.useState<MyReview | null>(null);
+  const [loadingMine, setLoadingMine] = React.useState(false);
 
   const [formError, setFormError] = React.useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = React.useState<FieldErrors | null>(
@@ -71,13 +84,69 @@ export function ReviewForm({ venueId }: { venueId: string }) {
     sensoryHours: false,
   });
 
-  // Optional: auto-fill name from session once authenticated (still editable)
+  // If user signs out while open, close it + reset "myReview"
+  React.useEffect(() => {
+    if (!authed) {
+      setOpen(false);
+      setMyReview(null);
+    }
+  }, [authed]);
+
+  function handleSignIn() {
+    const callbackUrl =
+      typeof window !== "undefined" ? window.location.href : undefined;
+
+    signIn("google", callbackUrl ? { callbackUrl } : undefined);
+  }
+
+  // Load the signed-in user's existing review for this venue
   React.useEffect(() => {
     if (!authed) return;
-    const name = (data?.user?.name || "")?.trim();
-    if (!name) return;
-    setForm((p) => (p.authorName ? p : { ...p, authorName: name }));
-  }, [authed, data?.user?.name]);
+
+    let cancelled = false;
+    setLoadingMine(true);
+
+    fetch(`/api/venues/${venueId}/reviews`, { method: "GET" })
+      .then((r) => r.json())
+      .then((data) => {
+        if (cancelled) return;
+        const r = data?.review as MyReview | null;
+
+        setMyReview(r ?? null);
+
+        // If they already have a review, prefill form
+        if (r) {
+          setForm({
+            authorName: r.authorName ?? "",
+            rating: String(r.rating ?? 5),
+            title: r.title ?? "",
+            content: r.content ?? "",
+            visitTimeHint: r.visitTimeHint ?? "",
+            noiseLevel: (r.noiseLevel ?? "") as Level,
+            lighting: (r.lighting ?? "") as Level,
+            crowding: (r.crowding ?? "") as Level,
+            quietSpace: Boolean(r.quietSpace),
+            sensoryHours: Boolean(r.sensoryHours),
+          });
+        } else {
+          // Otherwise optionally fill name from session (still editable)
+          const name = (data?.user?.name || "")?.trim();
+          if (name) {
+            setForm((p) => (p.authorName ? p : { ...p, authorName: name }));
+          }
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setMyReview(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMine(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [authed, venueId]);
 
   function LevelSelect({
     label,
@@ -115,14 +184,6 @@ export function ReviewForm({ venueId }: { venueId: string }) {
     );
   }
 
-  function handleSignIn() {
-    // Keep user on the same page after Google login
-    const callbackUrl =
-      typeof window !== "undefined" ? window.location.href : undefined;
-
-    signIn("google", callbackUrl ? { callbackUrl } : undefined);
-  }
-
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
@@ -135,8 +196,11 @@ export function ReviewForm({ venueId }: { venueId: string }) {
     }
 
     startTransition(async () => {
+      const isEditing = Boolean(myReview?.id);
+      const method = isEditing ? "PATCH" : "POST";
+
       const res = await fetch(`/api/venues/${venueId}/reviews`, {
-        method: "POST",
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           authorName: form.authorName || undefined,
@@ -159,31 +223,20 @@ export function ReviewForm({ venueId }: { venueId: string }) {
         setFormError(data?.error ?? "Something went wrong.");
         const fe: FieldErrors | null = data?.issues?.fieldErrors ?? null;
         if (fe) setFieldErrors(fe);
-        toast.error(data?.error ?? "Could not submit review");
+        toast.error(data?.error ?? "Could not save review");
         return;
       }
 
-      toast.success("Review submitted", {
+      toast.success(isEditing ? "Review updated" : "Review submitted", {
         description: "Thanks for sharing — this helps other parents a lot 💙",
-      });
-
-      setForm({
-        authorName: "",
-        rating: "5",
-        title: "",
-        content: "",
-        visitTimeHint: "",
-        noiseLevel: "",
-        lighting: "",
-        crowding: "",
-        quietSpace: false,
-        sensoryHours: false,
       });
 
       setOpen(false);
       router.refresh();
     });
   }
+
+  const isEditing = Boolean(myReview?.id);
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -193,15 +246,26 @@ export function ReviewForm({ venueId }: { venueId: string }) {
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold">
               <Star className="h-4 w-4 text-primary" />
-              Leave a review
+              {isEditing ? "Your review" : "Leave a review"}
+              {loadingMine && authed ? (
+                <span className="text-xs text-muted-foreground font-normal">
+                  (checking…)
+                </span>
+              ) : null}
             </div>
 
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               {authed ? (
                 <>
                   <span>
-                    Signed in as <span className="font-medium">{signedInLabel}</span>
+                    Signed in as{" "}
+                    <span className="font-medium">{signedInLabel}</span>
                   </span>
+                  {isEditing ? (
+                    <span className="rounded-full px-2 py-0.5 bg-muted ring-1 ring-border/40">
+                      You can edit your review
+                    </span>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => signOut()}
@@ -217,22 +281,27 @@ export function ReviewForm({ venueId }: { venueId: string }) {
             </div>
           </div>
 
-          {/* Right-side button:
-              - If authed: normal collapsible trigger (Write/Hide)
-              - If not authed: sign-in button (does NOT open form)
-           */}
+          {/* Right-side button */}
           {authed ? (
             <CollapsibleTrigger asChild>
               <Button
                 variant={open ? "secondary" : "default"}
                 className="rounded-2xl"
               >
-                {open ? "Hide" : "Write a review"}
-                <ChevronDown
-                  className={`ml-2 h-4 w-4 transition ${
-                    open ? "rotate-180" : ""
-                  }`}
-                />
+                {open
+                  ? "Hide"
+                  : isEditing
+                  ? "Edit your review"
+                  : "Write a review"}
+                {isEditing && !open ? (
+                  <Pencil className="ml-2 h-4 w-4" />
+                ) : (
+                  <ChevronDown
+                    className={`ml-2 h-4 w-4 transition ${
+                      open ? "rotate-180" : ""
+                    }`}
+                  />
+                )}
               </Button>
             </CollapsibleTrigger>
           ) : (
@@ -411,12 +480,8 @@ export function ReviewForm({ venueId }: { venueId: string }) {
                   Reviews help other families choose confidently.
                 </p>
 
-                <Button
-                  type="submit"
-                  disabled={pending || !authed}
-                  className="rounded-2xl"
-                >
-                  {pending ? "Submitting..." : "Submit review"}
+                <Button type="submit" disabled={pending || !authed} className="rounded-2xl">
+                  {pending ? "Saving..." : isEditing ? "Update review" : "Submit review"}
                 </Button>
               </div>
             </form>

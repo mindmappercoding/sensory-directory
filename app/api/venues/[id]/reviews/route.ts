@@ -1,4 +1,3 @@
-// app/api/venues/[id]/reviews/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { reviewSchema } from "@/lib/validators/review";
@@ -17,26 +16,55 @@ function zodIssuesToFieldErrors(issues: z.ZodIssue[]): FieldErrors {
   return out;
 }
 
-class AlreadyReviewedError extends Error {
-  constructor() {
-    super("You’ve already reviewed this venue.");
-    this.name = "AlreadyReviewedError";
+// ✅ GET: return *my* review for this venue (or null)
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const { id } = await params;
+
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    // Not signed in -> no "my review"
+    return NextResponse.json({ review: null });
   }
+
+  const review = await prisma.review.findFirst({
+    where: { venueId: id, authorId: userId },
+    select: {
+      id: true,
+      authorName: true,
+      rating: true,
+      title: true,
+      content: true,
+      visitTimeHint: true,
+      noiseLevel: true,
+      lighting: true,
+      crowding: true,
+      quietSpace: true,
+      sensoryHours: true,
+      createdAt: true,
+    },
+  });
+
+  return NextResponse.json({ review });
 }
 
-export async function POST(
+// ✅ PATCH: edit *my* existing review (no increment to reviewCount)
+export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
 
-  // ✅ must be logged in
   const session = await auth();
   const userId = session?.user?.id;
 
   if (!userId) {
     return NextResponse.json(
-      { error: "Please sign in to leave a review." },
+      { error: "Please sign in to edit your review." },
       { status: 401 }
     );
   }
@@ -44,9 +72,7 @@ export async function POST(
   try {
     const body = await req.json();
 
-    // Force venueId from URL (ignore any authorId/name from client)
     const parsed = reviewSchema.safeParse({ ...body, venueId: id });
-
     if (!parsed.success) {
       return NextResponse.json(
         {
@@ -60,7 +86,6 @@ export async function POST(
       );
     }
 
-    // Guard: venue must exist and be public (not archived)
     const venue = await prisma.venue.findFirst({
       where: {
         id,
@@ -75,22 +100,16 @@ export async function POST(
 
     const input = parsed.data;
 
-    const created = await prisma.$transaction(async (tx) => {
-      // ✅ Hard guard: one review per (venueId, authorId)
-      const existing = await tx.review.findFirst({
-        where: { venueId: venue.id, authorId: userId },
-        select: { id: true },
-      });
-
-      if (existing) {
-        throw new AlreadyReviewedError();
-      }
-
-      const review = await tx.review.create({
+    const updated = await prisma.$transaction(async (tx) => {
+      const review = await tx.review.update({
+        where: {
+          // requires @@unique([venueId, authorId]) in your schema
+          venueId_authorId: { venueId: venue.id, authorId: userId },
+        },
         data: {
-          venueId: venue.id,
-          authorId: userId,
-          authorName: session?.user?.name ?? session?.user?.email ?? null,
+          authorName:
+            (session?.user?.name ?? session?.user?.email ?? input.authorName) ||
+            null,
 
           rating: input.rating,
           title: input.title || null,
@@ -110,33 +129,21 @@ export async function POST(
 
       await tx.venue.update({
         where: { id: venue.id },
-        data: {
-          reviewCount: { increment: 1 },
-          lastReviewedAt: new Date(),
-        },
+        data: { lastReviewedAt: new Date() },
       });
 
       return review;
     });
 
-    return NextResponse.json({ ok: true, review: created });
+    return NextResponse.json({ ok: true, review: updated });
   } catch (e: any) {
-    // ✅ Our explicit guard
-    if (e?.name === "AlreadyReviewedError") {
+    // If they somehow don't have one yet
+    if (e?.code === "P2025") {
       return NextResponse.json(
-        { error: "You’ve already reviewed this venue." },
-        { status: 409 }
+        { error: "No existing review to edit yet." },
+        { status: 404 }
       );
     }
-
-    // ✅ Prisma unique constraint (race-condition safety)
-    if (e?.code === "P2002") {
-      return NextResponse.json(
-        { error: "You’ve already reviewed this venue." },
-        { status: 409 }
-      );
-    }
-
     return NextResponse.json(
       { error: e?.message ?? "Server error" },
       { status: 500 }
