@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ReviewForm } from "./ReviewForm";
 import VenueGallery from "./VenueGallery";
+import ReportReviewButton from "./ReportReviewButton";
 
 export default async function VenueDetailPage({
   params,
@@ -48,7 +49,13 @@ export default async function VenueDetailPage({
         </div>
 
         <p className="text-muted-foreground">
-          {[venue.address1, venue.address2, venue.city, venue.postcode, venue.county]
+          {[
+            venue.address1,
+            venue.address2,
+            venue.city,
+            venue.postcode,
+            venue.county,
+          ]
             .filter(Boolean)
             .join(", ")}
         </p>
@@ -119,7 +126,9 @@ export default async function VenueDetailPage({
           <div>Sensory hours: {venue.sensory?.sensoryHours ? "Yes" : "No"}</div>
 
           {venue.sensory?.notes && (
-            <div className="pt-2 text-muted-foreground">{venue.sensory.notes}</div>
+            <div className="pt-2 text-muted-foreground">
+              {venue.sensory.notes}
+            </div>
           )}
         </div>
       </section>
@@ -131,16 +140,22 @@ export default async function VenueDetailPage({
           <div className="rounded-xl border p-4 text-sm space-y-2">
             <div>Parking: {venue.facilities.parking ? "Yes" : "No"}</div>
             <div>
-              Accessible toilet: {venue.facilities.accessibleToilet ? "Yes" : "No"}
+              Accessible toilet:{" "}
+              {venue.facilities.accessibleToilet ? "Yes" : "No"}
             </div>
             <div>Baby change: {venue.facilities.babyChange ? "Yes" : "No"}</div>
             <div>
-              Wheelchair access: {venue.facilities.wheelchairAccess ? "Yes" : "No"}
+              Wheelchair access:{" "}
+              {venue.facilities.wheelchairAccess ? "Yes" : "No"}
             </div>
-            <div>Staff trained: {venue.facilities.staffTrained ? "Yes" : "No"}</div>
+            <div>
+              Staff trained: {venue.facilities.staffTrained ? "Yes" : "No"}
+            </div>
 
             {venue.facilities.notes && (
-              <div className="pt-2 text-muted-foreground">{venue.facilities.notes}</div>
+              <div className="pt-2 text-muted-foreground">
+                {venue.facilities.notes}
+              </div>
             )}
           </div>
         </section>
@@ -161,7 +176,10 @@ export default async function VenueDetailPage({
                   Number(new Date(b.createdAt)) - Number(new Date(a.createdAt))
               )
               .map((r) => (
-                <div key={r.id} className="rounded-xl border p-4 text-sm space-y-2">
+                <div
+                  key={r.id}
+                  className="rounded-xl border p-4 text-sm space-y-2"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="font-medium">
                       Rating: {r.rating}/5
@@ -177,19 +195,25 @@ export default async function VenueDetailPage({
                   {(r.authorName || r.visitTimeHint) && (
                     <div className="text-xs text-muted-foreground">
                       {r.authorName ? <span>By {r.authorName}</span> : null}
-                      {r.authorName && r.visitTimeHint ? <span> • </span> : null}
-                      {r.visitTimeHint ? <span>Visited: {r.visitTimeHint}</span> : null}
+                      {r.authorName && r.visitTimeHint ? (
+                        <span> • </span>
+                      ) : null}
+                      {r.visitTimeHint ? (
+                        <span>Visited: {r.visitTimeHint}</span>
+                      ) : null}
                     </div>
                   )}
 
-                  {r.content && <div className="text-muted-foreground">{r.content}</div>}
+                  {r.content && (
+                    <div className="text-muted-foreground">{r.content}</div>
+                  )}
 
                   {(r.noiseLevel ||
                     r.lighting ||
                     r.crowding ||
                     r.quietSpace !== null ||
                     r.sensoryHours !== null) && (
-                    <div className="rounded-lg bg-muted/30 p-3 text-xs">
+                    <div className="rounded-lg bg-muted/30 p-3 text-xs relative">
                       <div className="font-medium mb-1">Sensory signals</div>
                       <div className="grid gap-1 sm:grid-cols-2">
                         <div>Noise: {r.noiseLevel ?? "—"}</div>
@@ -197,7 +221,11 @@ export default async function VenueDetailPage({
                         <div>Crowding: {r.crowding ?? "—"}</div>
                         <div>
                           Quiet space:{" "}
-                          {r.quietSpace === null ? "—" : r.quietSpace ? "Yes" : "No"}
+                          {r.quietSpace === null
+                            ? "—"
+                            : r.quietSpace
+                            ? "Yes"
+                            : "No"}
                         </div>
                         <div>
                           Sensory hours:{" "}
@@ -208,6 +236,7 @@ export default async function VenueDetailPage({
                             : "No"}
                         </div>
                       </div>
+                      <ReportReviewButton reviewId={r.id} />
                     </div>
                   )}
                 </div>

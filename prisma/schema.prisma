@@ -189,6 +189,8 @@ model Review {
 
   createdAt     DateTime @default(now())
 
+  reports ReviewReport[]   // ✅ opposite relation
+
   @@index([venueId])
   @@index([createdAt])
   @@index([authorId])
@@ -217,4 +219,48 @@ model VenueSubmission {
 
   @@index([status])
   @@index([type])
+}
+
+enum ReviewReportReason {
+  SPAM
+  HARASSMENT
+  HATE
+  OFF_TOPIC
+  MISINFORMATION
+  PRIVACY
+  OTHER
+}
+
+enum ReviewReportStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+model ReviewReport {
+  id          String   @id @default(auto()) @map("_id") @db.ObjectId
+
+  reviewId    String   @db.ObjectId
+  review      Review   @relation(fields: [reviewId], references: [id])
+
+  venueId     String   @db.ObjectId
+  // (no relation needed, but you can add if you want later)
+
+  reporterId  String?  // session user id if signed in
+  reporterIp  String?  // optional, for abuse prevention
+
+  reason      ReviewReportReason
+  message     String?
+
+  status      ReviewReportStatus @default(OPEN)
+  createdAt   DateTime @default(now())
+
+  resolvedAt  DateTime?
+  resolvedBy  String?
+  resolutionNote String?
+
+  @@index([reviewId])
+  @@index([venueId])
+  @@index([status])
+  @@index([createdAt])
 }
