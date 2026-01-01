@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, Star } from "lucide-react";
+import { ChevronDown, Star, LogIn, LogOut } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,8 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+
+import { signIn, signOut, useSession } from "next-auth/react";
 
 type FieldErrors = Record<string, string[]>;
 
@@ -38,8 +40,17 @@ export function ReviewForm({ venueId }: { venueId: string }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
 
+  const { data, status } = useSession();
+  const authed = status === "authenticated";
+  const signedInLabel = data?.user?.name || data?.user?.email || "Signed in";
+
   // Collapsible state
   const [open, setOpen] = React.useState(false);
+
+  // If user signs out while open, close it
+  React.useEffect(() => {
+    if (!authed && open) setOpen(false);
+  }, [authed, open]);
 
   const [formError, setFormError] = React.useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = React.useState<FieldErrors | null>(
@@ -59,6 +70,14 @@ export function ReviewForm({ venueId }: { venueId: string }) {
     quietSpace: false,
     sensoryHours: false,
   });
+
+  // Optional: auto-fill name from session once authenticated (still editable)
+  React.useEffect(() => {
+    if (!authed) return;
+    const name = (data?.user?.name || "")?.trim();
+    if (!name) return;
+    setForm((p) => (p.authorName ? p : { ...p, authorName: name }));
+  }, [authed, data?.user?.name]);
 
   function LevelSelect({
     label,
@@ -96,10 +115,24 @@ export function ReviewForm({ venueId }: { venueId: string }) {
     );
   }
 
+  function handleSignIn() {
+    // Keep user on the same page after Google login
+    const callbackUrl =
+      typeof window !== "undefined" ? window.location.href : undefined;
+
+    signIn("google", callbackUrl ? { callbackUrl } : undefined);
+  }
+
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setFormError(null);
     setFieldErrors(null);
+
+    if (!authed) {
+      toast.error("Please sign in to leave a review.");
+      handleSignIn();
+      return;
+    }
 
     startTransition(async () => {
       const res = await fetch(`/api/venues/${venueId}/reviews`, {
@@ -147,10 +180,7 @@ export function ReviewForm({ venueId }: { venueId: string }) {
         sensoryHours: false,
       });
 
-      // Close the form after submit (optional)
       setOpen(false);
-
-      // Refresh the server-rendered page so the new review appears
       router.refresh();
     });
   }
@@ -165,26 +195,52 @@ export function ReviewForm({ venueId }: { venueId: string }) {
               <Star className="h-4 w-4 text-primary" />
               Leave a review
             </div>
-            <div className="text-xs text-muted-foreground">
-              {open
-                ? "Share what it was like — this really helps other families."
-                : "Tap to open the review form"}
+
+            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              {authed ? (
+                <>
+                  <span>
+                    Signed in as <span className="font-medium">{signedInLabel}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => signOut()}
+                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 ring-1 ring-border/50 hover:bg-muted"
+                  >
+                    <LogOut className="h-3.5 w-3.5" />
+                    Sign out
+                  </button>
+                </>
+              ) : (
+                <span>Sign in to open the review form.</span>
+              )}
             </div>
           </div>
 
-          <CollapsibleTrigger asChild>
-            <Button
-              variant={open ? "secondary" : "default"}
-              className="rounded-2xl"
-            >
-              {open ? "Hide" : "Write a review"}
-              <ChevronDown
-                className={`ml-2 h-4 w-4 transition ${
-                  open ? "rotate-180" : ""
-                }`}
-              />
+          {/* Right-side button:
+              - If authed: normal collapsible trigger (Write/Hide)
+              - If not authed: sign-in button (does NOT open form)
+           */}
+          {authed ? (
+            <CollapsibleTrigger asChild>
+              <Button
+                variant={open ? "secondary" : "default"}
+                className="rounded-2xl"
+              >
+                {open ? "Hide" : "Write a review"}
+                <ChevronDown
+                  className={`ml-2 h-4 w-4 transition ${
+                    open ? "rotate-180" : ""
+                  }`}
+                />
+              </Button>
+            </CollapsibleTrigger>
+          ) : (
+            <Button onClick={handleSignIn} className="rounded-2xl">
+              <LogIn className="mr-2 h-4 w-4" />
+              Sign in to review
             </Button>
-          </CollapsibleTrigger>
+          )}
         </div>
 
         {/* Form (collapsible content) */}
@@ -355,7 +411,11 @@ export function ReviewForm({ venueId }: { venueId: string }) {
                   Reviews help other families choose confidently.
                 </p>
 
-                <Button type="submit" disabled={pending} className="rounded-2xl">
+                <Button
+                  type="submit"
+                  disabled={pending || !authed}
+                  className="rounded-2xl"
+                >
                   {pending ? "Submitting..." : "Submit review"}
                 </Button>
               </div>

@@ -4,6 +4,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { Button } from "@/components/ui/button";
+import Providers from "@/components/Providers";
+import { SignIn} from "@/components/SignIn";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,6 +30,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <Providers>
         {/* App frame */}
         <div className="min-h-dvh bg-background text-foreground">
           {/* Navbar */}
@@ -55,6 +58,7 @@ export default function RootLayout({
                   <Link href="/submit">
                     <Button className="rounded-xl">Submit a venue</Button>
                   </Link>
+                  <SignIn/>
                 </nav>
               </div>
             </div>
@@ -65,6 +69,7 @@ export default function RootLayout({
         </div>
 
         <Toaster richColors position="top-right" />
+      </Providers>
       </body>
     </html>
   );

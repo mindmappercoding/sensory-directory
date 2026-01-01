@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { reviewSchema } from "@/lib/validators/review";
 import { z } from "zod";
+import { auth } from "@/lib/auth";
 
 type FieldErrors = Record<string, string[]>;
 
@@ -16,23 +17,44 @@ function zodIssuesToFieldErrors(issues: z.ZodIssue[]): FieldErrors {
   return out;
 }
 
+class AlreadyReviewedError extends Error {
+  constructor() {
+    super("You’ve already reviewed this venue.");
+    this.name = "AlreadyReviewedError";
+  }
+}
+
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
 
+  // ✅ must be logged in
+  const session = await auth();
+  const userId = session?.user?.id;
+
+  if (!userId) {
+    return NextResponse.json(
+      { error: "Please sign in to leave a review." },
+      { status: 401 }
+    );
+  }
+
   try {
     const body = await req.json();
 
-    // Force venueId from URL
+    // Force venueId from URL (ignore any authorId/name from client)
     const parsed = reviewSchema.safeParse({ ...body, venueId: id });
 
     if (!parsed.success) {
       return NextResponse.json(
         {
           error: "Please fix the highlighted fields.",
-          issues: { formErrors: [], fieldErrors: zodIssuesToFieldErrors(parsed.error.issues) },
+          issues: {
+            formErrors: [],
+            fieldErrors: zodIssuesToFieldErrors(parsed.error.issues),
+          },
         },
         { status: 400 }
       );
@@ -54,11 +76,22 @@ export async function POST(
     const input = parsed.data;
 
     const created = await prisma.$transaction(async (tx) => {
+      // ✅ Hard guard: one review per (venueId, authorId)
+      const existing = await tx.review.findFirst({
+        where: { venueId: venue.id, authorId: userId },
+        select: { id: true },
+      });
+
+      if (existing) {
+        throw new AlreadyReviewedError();
+      }
+
       const review = await tx.review.create({
         data: {
           venueId: venue.id,
-          authorName: input.authorName || null,
-          authorId: input.authorId || null,
+          authorId: userId,
+          authorName: session?.user?.name ?? session?.user?.email ?? null,
+
           rating: input.rating,
           title: input.title || null,
           content: input.content || null,
@@ -67,8 +100,10 @@ export async function POST(
           noiseLevel: input.noiseLevel || null,
           lighting: input.lighting || null,
           crowding: input.crowding || null,
-          quietSpace: typeof input.quietSpace === "boolean" ? input.quietSpace : null,
-          sensoryHours: typeof input.sensoryHours === "boolean" ? input.sensoryHours : null,
+          quietSpace:
+            typeof input.quietSpace === "boolean" ? input.quietSpace : null,
+          sensoryHours:
+            typeof input.sensoryHours === "boolean" ? input.sensoryHours : null,
         },
         select: { id: true, createdAt: true },
       });
@@ -86,6 +121,25 @@ export async function POST(
 
     return NextResponse.json({ ok: true, review: created });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "Server error" }, { status: 500 });
+    // ✅ Our explicit guard
+    if (e?.name === "AlreadyReviewedError") {
+      return NextResponse.json(
+        { error: "You’ve already reviewed this venue." },
+        { status: 409 }
+      );
+    }
+
+    // ✅ Prisma unique constraint (race-condition safety)
+    if (e?.code === "P2002") {
+      return NextResponse.json(
+        { error: "You’ve already reviewed this venue." },
+        { status: 409 }
+      );
+    }
+
+    return NextResponse.json(
+      { error: e?.message ?? "Server error" },
+      { status: 500 }
+    );
   }
 }
