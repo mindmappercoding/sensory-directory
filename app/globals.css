@@ -59,52 +59,55 @@
 :root {
   --radius: 0.75rem;
 
-  /* Warm off-white base */
-  --background: oklch(0.985 0.012 90);
-  --foreground: oklch(0.16 0.02 255);
+  /* Clean white base */
+  --background: oklch(0.995 0.002 240);
+  --foreground: oklch(0.18 0.02 255);
 
   /* Surfaces */
-  --card: oklch(0.995 0.006 90);
+  --card: oklch(1 0 0);
   --card-foreground: var(--foreground);
-  --popover: oklch(0.995 0.006 90);
+  --popover: oklch(1 0 0);
   --popover-foreground: var(--foreground);
 
-  /* Friendly blue as primary */
+  /* Friendly blue primary */
   --primary: oklch(0.56 0.17 252);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.99 0 0);
 
-  /* Soft secondary/muted */
-  --secondary: oklch(0.965 0.01 90);
+  /* Cool secondary / muted */
+  --secondary: oklch(0.97 0.005 240);
   --secondary-foreground: var(--foreground);
-  --muted: oklch(0.965 0.01 90);
-  --muted-foreground: oklch(0.5 0.03 255);
+  --muted: oklch(0.97 0.005 240);
+  --muted-foreground: oklch(0.52 0.03 255);
 
-  --accent: oklch(0.95 0.02 240);
+  /* Soft blue accent */
+  --accent: oklch(0.96 0.03 250);
   --accent-foreground: var(--foreground);
 
   --destructive: oklch(0.62 0.24 27);
 
-  --border: oklch(0.91 0.01 90);
-  --input: oklch(0.91 0.01 90);
+  /* Borders & inputs */
+  --border: oklch(0.92 0.005 240);
+  --input: oklch(0.92 0.005 240);
   --ring: oklch(0.62 0.12 252);
 
-  /* Charts unchanged-ish */
+  /* Charts (kept harmonious) */
   --chart-1: oklch(0.56 0.17 252);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
 
-  /* Sidebar (if you add later) */
-  --sidebar: oklch(0.995 0.006 90);
+  /* Sidebar (future-proofed) */
+  --sidebar: oklch(1 0 0);
   --sidebar-foreground: var(--foreground);
   --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: var(--primary-foreground);
-  --sidebar-accent: oklch(0.95 0.02 240);
+  --sidebar-accent: oklch(0.96 0.03 250);
   --sidebar-accent-foreground: var(--foreground);
   --sidebar-border: var(--border);
   --sidebar-ring: var(--ring);
 }
+
 
 .dark {
   --background: oklch(0.145 0 0);
@@ -152,10 +155,11 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply outline-ring/50;
   }
 
   body {
     @apply bg-background text-foreground;
   }
 }
+

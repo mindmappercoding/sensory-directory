@@ -43,127 +43,107 @@ export default async function VenuesPage({
   const venues = await listVenues(filters);
 
   return (
-    <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-[calc(100dvh-4rem)]">
-      {/* Layout uses full viewport height */}
-      <div className="flex h-full flex-col gap-6">
-        {/* Banner */}
-        <section className="relative shrink-0 overflow-hidden rounded-3xl border bg-card">
-          <div className="absolute inset-0 opacity-[0.35]">
-            <div className="h-full w-full bg-gradient-to-br from-sky-200/60 via-transparent to-blue-100/60" />
+    <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
+      {/* FULL-WIDTH BANNER */}
+      <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen overflow-hidden bg-secondary">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-10">
+          <div className="max-w-3xl">
+            <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
+              Sensory-friendly venues
+            </h1>
+            <p className="mt-3 text-sm sm:text-base text-muted-foreground">
+              Calm, inclusive places designed to support children and families
+              with sensory needs.
+            </p>
           </div>
+        </div>
+      </section>
 
-          <div className="relative p-6 sm:p-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div className="max-w-2xl">
-                <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
-                  Sensory-friendly venues
-                </h1>
-                <p className="mt-2 text-sm sm:text-base text-muted-foreground">
-                  Find places that work well for children with sensory needs —
-                  calm environments, sensory hours, and family-friendly spaces.
-                </p>
-              </div>
-
-              <Link href="/submit" className="w-full sm:w-auto">
-                <Button variant="outline" className="w-full sm:w-auto">
-                  Submit a venue
-                </Button>
-              </Link>
-            </div>
+      {/* FILTER BAR (full width, navbar-style) */}
+      <section className="sticky top-14 z-40">
+        <div className="rounded-3xl border bg-background/80 backdrop-blur">
+          <div className="p-3 sm:p-4">
+            <VenueFilters variant="bar" />
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* Content area fills remaining height */}
-        <div className="grid flex-1 gap-6 lg:grid-cols-[360px_1fr] min-h-0">
-          {/* Filters (never scroll) */}
-          <aside className="shrink-0">
-            <VenueFilters />
-          </aside>
-
-          {/* Results panel (ONLY scrollable area) */}
-          <section className="relative min-h-0 rounded-3xl border bg-card">
-            {/* Header stays fixed */}
-            <div className="shrink-0 border-b px-5 py-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-semibold">Venues</div>
-                  <div className="text-xs text-muted-foreground">
-                    Scroll inside this panel to browse results
-                  </div>
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {venues.length} results
-                </div>
+      {/* RESULTS */}
+      <section className="rounded-3xl border bg-card">
+        <div className="border-b px-5 py-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm font-semibold">Venues</div>
+              <div className="text-xs text-muted-foreground">
+                {venues.length} results
               </div>
             </div>
 
-            {/* SCROLL CONTAINER */}
-            <div className="absolute inset-x-0 bottom-0 top-[72px] overflow-y-auto overscroll-contain">
-              <div className="space-y-3 p-4">
-                {venues.length === 0 ? (
-                  <div className="rounded-2xl border bg-background/60 p-6 text-center">
-                    <div className="text-base font-medium">No venues found</div>
-                    <div className="mt-1 text-sm text-muted-foreground">
-                      Try adjusting your filters or searching a shorter name.
+            <Link href="/submit" className="hidden sm:block">
+              <Button className="rounded-xl">Submit a venue</Button>
+            </Link>
+          </div>
+        </div>
+
+        <div className="p-4 sm:p-6">
+          {venues.length === 0 ? (
+            <div className="rounded-2xl border bg-background/60 p-6 text-center">
+              <div className="text-base font-medium">No venues found</div>
+              <div className="mt-1 text-sm text-muted-foreground">
+                Try adjusting your filters or searching a shorter name.
+              </div>
+            </div>
+          ) : (
+            <div className="grid gap-6 md:grid-cols-2">
+              {venues.map((v) => {
+                const src = (v as any).coverImageUrl || "/600x400.png";
+
+                return (
+                  <Link
+                    key={v.id}
+                    href={`/venues/${v.id}`}
+                    className="group block overflow-hidden rounded-3xl border bg-background hover:bg-muted/30 transition"
+                  >
+                    <div className="relative h-56 w-full">
+                      <Image
+                        src={src}
+                        alt={v.name}
+                        fill
+                        className="object-cover"
+                        sizes="(max-width: 768px) 100vw, 50vw"
+                      />
+                      {!!v.verifiedAt && (
+                        <span className="absolute left-4 top-4 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700">
+                          Verified
+                        </span>
+                      )}
                     </div>
-                  </div>
-                ) : (
-                  venues.map((v) => {
-                    const src = (v as any).coverImageUrl || "/600x400.png";
 
-                    return (
-                      <Link
-                        key={v.id}
-                        href={`/venues/${v.id}`}
-                        className="group block overflow-hidden rounded-2xl border bg-background hover:bg-muted/30 transition"
-                      >
-                        <div className="flex flex-col sm:flex-row">
-                          <div className="relative h-44 w-full sm:h-36 sm:w-56 shrink-0">
-                            <Image
-                              src={src}
-                              alt={v.name}
-                              fill
-                              className="object-cover"
-                              sizes="(max-width: 640px) 100vw, 224px"
-                            />
+                    <div className="p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="text-lg sm:text-xl font-semibold truncate">
+                            {v.name}
                           </div>
-
-                          <div className="flex-1 p-4">
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="font-medium text-base sm:text-lg truncate">
-                                  {v.name}
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                  {[v.city, v.postcode]
-                                    .filter(Boolean)
-                                    .join(" • ")}
-                                </div>
-                              </div>
-
-                              {!!v.verifiedAt && (
-                                <span className="shrink-0 rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs text-emerald-700">
-                                  Verified
-                                </span>
-                              )}
-                            </div>
-
-                            {!!v.tags?.length && (
-                              <div className="mt-2 text-xs text-muted-foreground">
-                                {v.tags.slice(0, 6).join(" · ")}
-                              </div>
-                            )}
+                          <div className="mt-1 text-sm text-muted-foreground">
+                            {[v.city, v.postcode].filter(Boolean).join(" • ")}
                           </div>
                         </div>
-                      </Link>
-                    );
-                  })
-                )}
-              </div>
+                      </div>
+
+                      {!!v.tags?.length && (
+                        <div className="mt-3 text-xs text-muted-foreground">
+                          {v.tags.slice(0, 8).join(" · ")}
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
-          </section>
+          )}
         </div>
-      </div>
+      </section>
     </main>
   );
 }

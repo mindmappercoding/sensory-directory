@@ -61,7 +61,7 @@ export default function RootLayout({
           </header>
 
           {/* Content */}
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 py-6">{children}</div>
+          <div className="mx-auto max-w-7xl px-4 sm:px-6">{children}</div>
         </div>
 
         <Toaster richColors position="top-right" />
