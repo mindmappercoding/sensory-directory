@@ -26,12 +26,12 @@ export function SignIn() {
 
   return (
     <div className="flex items-center gap-2">
-      <span className="hidden sm:inline text-xs text-muted-foreground">
-        Signed in as {name}
-      </span>
       <Button variant="secondary" className="rounded-xl" onClick={() => signOut()}>
         Sign out
       </Button>
+      <span className="hidden sm:inline text-xs text-muted-foreground">
+        Signed in as {name}
+      </span>
     </div>
   );
 }

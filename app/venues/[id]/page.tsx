@@ -36,7 +36,7 @@ export default async function VenueDetailPage({
       : null;
 
   return (
-    <main className="mx-auto max-w-3xl p-6 space-y-8">
+    <main className="mx-auto max-w-7xl p-6 space-y-8">
       <header className="space-y-2">
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-3xl font-semibold">{venue.name}</h1>

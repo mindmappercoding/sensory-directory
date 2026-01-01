@@ -23,8 +23,8 @@ export default async function AdminVenuesPage() {
     <main className="mx-auto max-w-6xl p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">All venues</h1>
-        <Link href="/admin/submissions" className="text-sm underline">
-          View submissions
+        <Link href="/admin" className="text-sm underline">
+          Back to dashboard
         </Link>
       </div>
 
@@ -44,7 +44,8 @@ export default async function AdminVenuesPage() {
           const reviewCount = visibleReviews.length;
           const avgRating =
             reviewCount > 0
-              ? visibleReviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
+              ? visibleReviews.reduce((sum, r) => sum + r.rating, 0) /
+                reviewCount
               : null;
 
           return (
@@ -87,7 +88,9 @@ export default async function AdminVenuesPage() {
                       )}
                       <span>•</span>
                       <span>
-                        {avgRating === null ? "No ratings" : `${avgRating.toFixed(1)} ★ avg`}
+                        {avgRating === null
+                          ? "No ratings"
+                          : `${avgRating.toFixed(1)} ★ avg`}
                       </span>
                       <span>•</span>
                       <span>
@@ -103,7 +106,8 @@ export default async function AdminVenuesPage() {
                       )}
                       <span>•</span>
                       <span>
-                        {(v.imageUrls?.length ?? 0) + (v.coverImageUrl ? 1 : 0)} images
+                        {(v.imageUrls?.length ?? 0) + (v.coverImageUrl ? 1 : 0)}{" "}
+                        images
                       </span>
                     </div>
                   </div>
@@ -127,7 +131,10 @@ export default async function AdminVenuesPage() {
                       <UnarchiveVenueButton id={v.id} />
                     ) : (
                       <>
-                        <VerifyVenueButton id={v.id} verified={!!v.verifiedAt} />
+                        <VerifyVenueButton
+                          id={v.id}
+                          verified={!!v.verifiedAt}
+                        />
                         <ArchiveVenueButton id={v.id} />
                       </>
                     )}

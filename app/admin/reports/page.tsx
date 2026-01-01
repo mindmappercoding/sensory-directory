@@ -33,11 +33,11 @@ export default async function AdminReportsPage() {
   });
 
   return (
-    <main className="mx-auto max-w-5xl p-6 space-y-6">
+    <main className="mx-auto max-w-7xl p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Review reports</h1>
-        <Link href="/admin/venues" className="text-sm underline">
-          Back to venues
+        <Link href="/admin" className="text-sm underline">
+          Back to dashboard
         </Link>
       </div>
 

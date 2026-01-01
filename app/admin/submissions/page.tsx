@@ -14,11 +14,11 @@ export default async function AdminSubmissionsPage() {
   });
 
   return (
-    <div className="mx-auto max-w-4xl p-6 space-y-6">
+    <div className="mx-auto max-w-7xl p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Pending submissions</h1>
-        <Link className="text-sm underline" href="/venues">
-          View venues
+        <Link href="/admin" className="text-sm underline">
+          Back to dashboard
         </Link>
       </div>
 

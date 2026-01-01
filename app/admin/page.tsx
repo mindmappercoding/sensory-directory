@@ -1,6 +1,7 @@
 // app/admin/page.tsx
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { AdminBreadcrumbs } from "./AdminBreadcrumbs";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -26,7 +27,7 @@ export default async function AdminDashboardPage() {
   const unverifiedVenueCount = venueCount - verifiedVenueCount;
 
   return (
-    <main className="mx-auto max-w-6xl p-6 space-y-8">
+    <main className="mx-auto max-w-7xl p-6 space-y-8">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold">Admin dashboard</h1>
         <p className="text-sm text-muted-foreground">
