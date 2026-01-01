@@ -9,6 +9,10 @@ type Filters = {
   quietSpace?: "true" | "false";
 };
 
+const visibleReviewsWhere = {
+  OR: [{ hiddenAt: null }, { hiddenAt: { isSet: false } }],
+};
+
 export async function listVenues(filters: Filters) {
   const and: any[] = [];
 
@@ -27,6 +31,7 @@ export async function listVenues(filters: Filters) {
   }
 
   if (filters.q) {
+    // ✅ NAME ONLY search (as you requested)
     const q = filters.q.trim();
     if (q) {
       and.push({
@@ -49,7 +54,7 @@ export async function listVenues(filters: Filters) {
 
   const where = and.length ? { AND: and } : {};
 
-  const venues = await prisma.venue.findMany({
+  const rows = await prisma.venue.findMany({
     where,
     orderBy: [{ verifiedAt: "desc" }, { createdAt: "desc" }],
     take: 50,
@@ -61,37 +66,22 @@ export async function listVenues(filters: Filters) {
       tags: true,
       verifiedAt: true,
       coverImageUrl: true,
-      reviewCount: true, // ✅ existing field in Venue model
+      // ✅ only include VISIBLE reviews for computing avg/count
+      reviews: {
+        where: visibleReviewsWhere,
+        select: { rating: true },
+      },
     },
   });
 
-  const ids = venues.map((v) => v.id);
-  if (!ids.length) return venues.map((v) => ({ ...v, avgRating: null as number | null }));
+  return rows.map((v) => {
+    const reviewCount = v.reviews.length;
+    const avgRating =
+      reviewCount > 0
+        ? v.reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
+        : null;
 
-  const stats = await prisma.review.groupBy({
-    by: ["venueId"],
-    where: { venueId: { in: ids } },
-    _avg: { rating: true },
-    _count: { _all: true },
-  });
-
-  const statsMap = new Map(
-    stats.map((s) => [
-      s.venueId,
-      {
-        avgRating: s._avg.rating ?? null,
-        count: s._count._all ?? 0,
-      },
-    ])
-  );
-
-  return venues.map((v) => {
-    const s = statsMap.get(v.id);
-    return {
-      ...v,
-      // prefer groupBy count (truth), but keep venue.reviewCount too
-      reviewCount: s?.count ?? v.reviewCount ?? 0,
-      avgRating: s?.avgRating ?? null,
-    };
+    const { reviews, ...rest } = v;
+    return { ...rest, reviewCount, avgRating };
   });
 }

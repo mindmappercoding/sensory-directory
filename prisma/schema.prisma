@@ -182,6 +182,7 @@ model Review {
   sensoryHours  Boolean?
 
   createdAt     DateTime @default(now())
+  hiddenAt DateTime?
 
   @@index([venueId])
   @@index([authorId])

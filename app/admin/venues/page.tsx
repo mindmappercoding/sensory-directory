@@ -1,3 +1,4 @@
+// app/admin/venues/page.tsx
 import Link from "next/link";
 import Image from "next/image";
 import { prisma } from "@/lib/prisma";
@@ -11,7 +12,11 @@ export const revalidate = 0;
 export default async function AdminVenuesPage() {
   const venues = await prisma.venue.findMany({
     orderBy: { createdAt: "desc" },
-    include: { reviews: true },
+    include: {
+      reviews: {
+        select: { rating: true, hiddenAt: true },
+      },
+    },
   });
 
   return (
@@ -27,6 +32,20 @@ export default async function AdminVenuesPage() {
         {venues.map((v) => {
           const archived = !!v.archivedAt;
           const thumb = v.coverImageUrl || v.imageUrls?.[0] || "/600x400.png";
+
+          const hiddenCount = v.reviews.filter(
+            (r) => r.hiddenAt !== null && r.hiddenAt !== undefined
+          ).length;
+
+          const visibleReviews = v.reviews.filter(
+            (r) => r.hiddenAt === null || r.hiddenAt === undefined
+          );
+
+          const reviewCount = visibleReviews.length;
+          const avgRating =
+            reviewCount > 0
+              ? visibleReviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
+              : null;
 
           return (
             <div
@@ -67,9 +86,25 @@ export default async function AdminVenuesPage() {
                         <span className="text-amber-600">Unverified</span>
                       )}
                       <span>•</span>
-                      <span>{v.reviewCount} reviews</span>
+                      <span>
+                        {avgRating === null ? "No ratings" : `${avgRating.toFixed(1)} ★ avg`}
+                      </span>
                       <span>•</span>
-                      <span>{(v.imageUrls?.length ?? 0) + (v.coverImageUrl ? 1 : 0)} images</span>
+                      <span>
+                        {reviewCount} review{reviewCount === 1 ? "" : "s"}
+                      </span>
+                      {hiddenCount > 0 && (
+                        <>
+                          <span>•</span>
+                          <span className="text-amber-700">
+                            {hiddenCount} hidden
+                          </span>
+                        </>
+                      )}
+                      <span>•</span>
+                      <span>
+                        {(v.imageUrls?.length ?? 0) + (v.coverImageUrl ? 1 : 0)} images
+                      </span>
                     </div>
                   </div>
 

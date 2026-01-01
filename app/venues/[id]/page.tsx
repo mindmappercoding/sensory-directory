@@ -20,7 +20,9 @@ export default async function VenueDetailPage({
     include: {
       sensory: true,
       facilities: true,
-      reviews: true,
+      reviews: {
+        where: { OR: [{ hiddenAt: null }, { hiddenAt: { isSet: false } }] },
+      },
     },
   });
 
@@ -80,7 +82,6 @@ export default async function VenueDetailPage({
         )}
       </header>
 
-      {/* ✅ NEW: Gallery */}
       <VenueGallery
         venueName={venue.name}
         coverImageUrl={venue.coverImageUrl}
