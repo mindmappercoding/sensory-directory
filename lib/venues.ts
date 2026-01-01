@@ -27,7 +27,6 @@ export async function listVenues(filters: Filters) {
   }
 
   if (filters.q) {
-    // ✅ NAME ONLY search (as you requested)
     const q = filters.q.trim();
     if (q) {
       and.push({
@@ -50,7 +49,7 @@ export async function listVenues(filters: Filters) {
 
   const where = and.length ? { AND: and } : {};
 
-  return prisma.venue.findMany({
+  const venues = await prisma.venue.findMany({
     where,
     orderBy: [{ verifiedAt: "desc" }, { createdAt: "desc" }],
     take: 50,
@@ -61,7 +60,38 @@ export async function listVenues(filters: Filters) {
       postcode: true,
       tags: true,
       verifiedAt: true,
-      coverImageUrl: true, // ✅ NEW
+      coverImageUrl: true,
+      reviewCount: true, // ✅ existing field in Venue model
     },
+  });
+
+  const ids = venues.map((v) => v.id);
+  if (!ids.length) return venues.map((v) => ({ ...v, avgRating: null as number | null }));
+
+  const stats = await prisma.review.groupBy({
+    by: ["venueId"],
+    where: { venueId: { in: ids } },
+    _avg: { rating: true },
+    _count: { _all: true },
+  });
+
+  const statsMap = new Map(
+    stats.map((s) => [
+      s.venueId,
+      {
+        avgRating: s._avg.rating ?? null,
+        count: s._count._all ?? 0,
+      },
+    ])
+  );
+
+  return venues.map((v) => {
+    const s = statsMap.get(v.id);
+    return {
+      ...v,
+      // prefer groupBy count (truth), but keep venue.reviewCount too
+      reviewCount: s?.count ?? v.reviewCount ?? 0,
+      avgRating: s?.avgRating ?? null,
+    };
   });
 }

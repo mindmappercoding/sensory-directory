@@ -1,3 +1,4 @@
+// app/venues/[id]/page.tsx
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ReviewForm } from "./ReviewForm";
@@ -25,6 +26,12 @@ export default async function VenueDetailPage({
 
   if (!venue) return notFound();
 
+  const reviewCount = venue.reviews.length;
+  const avgRating =
+    reviewCount > 0
+      ? venue.reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
+      : null;
+
   return (
     <main className="mx-auto max-w-3xl p-6 space-y-8">
       <header className="space-y-2">
@@ -42,6 +49,17 @@ export default async function VenueDetailPage({
           {[venue.address1, venue.address2, venue.city, venue.postcode, venue.county]
             .filter(Boolean)
             .join(", ")}
+        </p>
+
+        <p className="text-sm text-muted-foreground">
+          {reviewCount > 0 && avgRating !== null ? (
+            <span>
+              ★ {avgRating.toFixed(1)} · {reviewCount}{" "}
+              {reviewCount === 1 ? "review" : "reviews"}
+            </span>
+          ) : (
+            <span>No reviews yet</span>
+          )}
         </p>
 
         {venue.website && (

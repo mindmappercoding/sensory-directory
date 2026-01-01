@@ -95,8 +95,11 @@ export default async function VenuesPage({
             </div>
           ) : (
             <div className="grid gap-6 md:grid-cols-2">
-              {venues.map((v) => {
-                const src = (v as any).coverImageUrl || "/600x400.png";
+              {venues.map((v: any) => {
+                const src = v.coverImageUrl || "/600x400.png";
+                const hasReviews = (v.reviewCount ?? 0) > 0;
+                const avg =
+                  typeof v.avgRating === "number" ? v.avgRating : null;
 
                 return (
                   <Link
@@ -127,6 +130,17 @@ export default async function VenuesPage({
                           </div>
                           <div className="mt-1 text-sm text-muted-foreground">
                             {[v.city, v.postcode].filter(Boolean).join(" • ")}
+                          </div>
+
+                          <div className="mt-2 text-xs text-muted-foreground">
+                            {hasReviews && avg !== null ? (
+                              <span>
+                                ★ {avg.toFixed(1)} · {v.reviewCount}{" "}
+                                {v.reviewCount === 1 ? "review" : "reviews"}
+                              </span>
+                            ) : (
+                              <span>No reviews yet</span>
+                            )}
                           </div>
                         </div>
                       </div>
