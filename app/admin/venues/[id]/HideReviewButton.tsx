@@ -4,29 +4,30 @@ import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 
-export default function DeleteReviewButton({ reviewId }: { reviewId: string }) {
+export default function HideReviewButton({
+  reviewId,
+  isHidden,
+}: {
+  reviewId: string;
+  isHidden: boolean;
+}) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   return (
     <Button
-      variant="destructive"
+      variant={isHidden ? "secondary" : "destructive"}
       size="sm"
       disabled={pending}
       onClick={() => {
-        const ok = window.confirm(
-          "Delete this review? This cannot be undone."
-        );
-        if (!ok) return;
-
         startTransition(async () => {
           const res = await fetch(`/api/admin/reviews/${reviewId}`, {
-            method: "DELETE",
+            method: "PATCH",
           });
 
           if (!res.ok) {
             const data = await res.json().catch(() => ({}));
-            alert(data?.error ?? "Failed to delete review.");
+            alert(data?.error ?? "Failed to update review.");
             return;
           }
 
@@ -34,7 +35,7 @@ export default function DeleteReviewButton({ reviewId }: { reviewId: string }) {
         });
       }}
     >
-      {pending ? "Deleting..." : "Delete"}
+      {pending ? "Saving..." : isHidden ? "Restore" : "Hide"}
     </Button>
   );
 }

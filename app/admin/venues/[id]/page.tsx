@@ -1,8 +1,7 @@
-// app/admin/venues/[id]/page.tsx
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import VenueGallery from "@/app/venues/[id]/VenueGallery";
-import { revalidatePath } from "next/cache";
+import HideReviewButton from "./HideReviewButton";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -15,107 +14,29 @@ export default async function AdminVenueDetailPage({
   const { id } = await params;
   if (!id) return notFound();
 
-  // --- Server Actions (hide/restore) ---
-  async function hideReview(formData: FormData) {
-    "use server";
-    const reviewId = String(formData.get("reviewId") || "");
-    const venueId = String(formData.get("venueId") || "");
-    if (!reviewId || !venueId) return;
-
-    await prisma.$transaction(async (tx) => {
-      // If already hidden, do nothing
-      const existing = await tx.review.findUnique({
-        where: { id: reviewId },
-        select: { hiddenAt: true },
-      });
-      if (existing?.hiddenAt) return;
-
-      await tx.review.update({
-        where: { id: reviewId },
-        data: { hiddenAt: new Date() },
-      });
-
-      // Keep Venue.reviewCount in sync (only counts visible reviews)
-      await tx.venue.update({
-        where: { id: venueId },
-        data: {
-          reviewCount: { decrement: 1 },
-          lastReviewedAt: new Date(),
-        },
-      });
-    });
-
-    revalidatePath(`/admin/venues/${venueId}`);
-  }
-
-  async function restoreReview(formData: FormData) {
-    "use server";
-    const reviewId = String(formData.get("reviewId") || "");
-    const venueId = String(formData.get("venueId") || "");
-    if (!reviewId || !venueId) return;
-
-    await prisma.$transaction(async (tx) => {
-      // If already visible, do nothing
-      const existing = await tx.review.findUnique({
-        where: { id: reviewId },
-        select: { hiddenAt: true },
-      });
-      if (!existing?.hiddenAt) return;
-
-      await tx.review.update({
-        where: { id: reviewId },
-        data: { hiddenAt: null },
-      });
-
-      // Keep Venue.reviewCount in sync
-      await tx.venue.update({
-        where: { id: venueId },
-        data: {
-          reviewCount: { increment: 1 },
-          lastReviewedAt: new Date(),
-        },
-      });
-    });
-
-    revalidatePath(`/admin/venues/${venueId}`);
-  }
-
   const venue = await prisma.venue.findUnique({
     where: { id },
     include: {
       sensory: true,
       facilities: true,
+      reviews: { orderBy: { createdAt: "desc" } },
       submissions: true,
-      reviews: {
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          authorName: true,
-          authorId: true,
-          rating: true,
-          title: true,
-          content: true,
-          createdAt: true,
-          hiddenAt: true, // ✅ new
-        },
-      },
     },
   });
 
   if (!venue) return notFound();
 
-  const visibleReviews = venue.reviews.filter(
-    (r) => !r.hiddenAt
-  );
-  const hiddenReviews = venue.reviews.filter(
-    (r) => !!r.hiddenAt
-  );
+  const visibleCount =
+    (venue as any).visibleReviewCount ??
+    venue.reviewCount ??
+    venue.reviews.filter((r) => !r.hiddenAt).length;
 
-  const reviewCount = visibleReviews.length;
+  const hiddenCount =
+    (venue as any).hiddenReviewCount ??
+    venue.reviews.filter((r) => !!r.hiddenAt).length;
+
   const avgRating =
-    reviewCount > 0
-      ? visibleReviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
-      : null;
+    typeof (venue as any).avgRating === "number" ? (venue as any).avgRating : null;
 
   return (
     <main className="mx-auto max-w-6xl p-6 space-y-10">
@@ -130,20 +51,6 @@ export default async function AdminVenueDetailPage({
           )}
           {venue.archivedAt && <span className="text-red-600">Archived</span>}
         </div>
-
-        {/* ✅ Avg rating + review count (VISIBLE only) */}
-        <p className="text-sm text-muted-foreground">
-          {avgRating === null
-            ? "No reviews yet."
-            : `${avgRating.toFixed(1)} ★ • ${reviewCount} review${
-                reviewCount === 1 ? "" : "s"
-              }`}
-          {hiddenReviews.length > 0 ? (
-            <span className="ml-2">
-              • <span className="text-amber-700">{hiddenReviews.length} hidden</span>
-            </span>
-          ) : null}
-        </p>
 
         <p className="text-muted-foreground">
           {[venue.address1, venue.address2, venue.city, venue.postcode, venue.county]
@@ -167,9 +74,23 @@ export default async function AdminVenueDetailPage({
         {venue.phone && (
           <p className="text-sm text-muted-foreground">Phone: {venue.phone}</p>
         )}
+
+        {/* ✅ Review stats (back like before) */}
+        <div className="pt-2 text-sm">
+          <span className="font-medium">
+            {avgRating === null ? "No ratings yet" : `${avgRating.toFixed(1)} ★ avg`}
+          </span>
+          <span className="mx-2 text-muted-foreground">•</span>
+          <span>
+            {visibleCount} visible review{visibleCount === 1 ? "" : "s"}
+          </span>
+          <span className="mx-2 text-muted-foreground">•</span>
+          <span className="text-muted-foreground">
+            {hiddenCount} hidden
+          </span>
+        </div>
       </header>
 
-      {/* ✅ Gallery */}
       <VenueGallery
         venueName={venue.name}
         coverImageUrl={venue.coverImageUrl}
@@ -230,89 +151,48 @@ export default async function AdminVenueDetailPage({
         </section>
       )}
 
-      {/* ✅ Visible reviews */}
       <section>
         <h2 className="text-lg font-semibold mb-3">Reviews</h2>
 
-        {visibleReviews.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No visible reviews.</p>
+        {venue.reviews.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No reviews yet.</p>
         ) : (
           <div className="space-y-3">
-            {visibleReviews.map((r) => (
-              <div key={r.id} className="rounded-xl border p-4 text-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium">Rating: {r.rating}/5</div>
-                    <div className="text-xs text-muted-foreground">
-                      {r.authorName || "Anonymous"} •{" "}
-                      {new Date(r.createdAt).toLocaleDateString("en-GB")}
+            {venue.reviews.map((r) => {
+              const isHidden = !!r.hiddenAt;
+
+              return (
+                <div
+                  key={r.id}
+                  className={[
+                    "rounded-xl border p-4 text-sm",
+                    isHidden ? "opacity-70" : "",
+                  ].join(" ")}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-medium">
+                        Rating: {r.rating}/5{" "}
+                        {isHidden && (
+                          <span className="ml-2 rounded bg-amber-100 px-2 py-0.5 text-xs text-amber-800">
+                            Hidden
+                          </span>
+                        )}
+                      </div>
+                      {r.title && <div className="mt-1">{r.title}</div>}
+                      {r.content && (
+                        <div className="mt-2 text-muted-foreground">{r.content}</div>
+                      )}
                     </div>
+
+                    <HideReviewButton reviewId={r.id} isHidden={isHidden} />
                   </div>
-
-                  <form action={hideReview}>
-                    <input type="hidden" name="reviewId" value={r.id} />
-                    <input type="hidden" name="venueId" value={venue.id} />
-                    <button className="rounded-lg border px-3 py-1 text-sm">
-                      Hide
-                    </button>
-                  </form>
                 </div>
-
-                {r.title && <div className="mt-2">{r.title}</div>}
-                {r.content && (
-                  <div className="mt-2 text-muted-foreground">{r.content}</div>
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>
-
-      {/* ✅ Hidden reviews */}
-      {hiddenReviews.length > 0 && (
-        <section>
-          <h2 className="text-lg font-semibold mb-3 text-amber-700">
-            Hidden reviews
-          </h2>
-
-          <div className="space-y-3">
-            {hiddenReviews.map((r) => (
-              <div
-                key={r.id}
-                className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="font-medium">
-                      Rating: {r.rating}/5{" "}
-                      <span className="ml-2 rounded bg-amber-200 px-2 py-0.5 text-xs text-amber-900">
-                        Hidden
-                      </span>
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {r.authorName || "Anonymous"} •{" "}
-                      {new Date(r.createdAt).toLocaleDateString("en-GB")}
-                    </div>
-                  </div>
-
-                  <form action={restoreReview}>
-                    <input type="hidden" name="reviewId" value={r.id} />
-                    <input type="hidden" name="venueId" value={venue.id} />
-                    <button className="rounded-lg border px-3 py-1 text-sm">
-                      Restore
-                    </button>
-                  </form>
-                </div>
-
-                {r.title && <div className="mt-2">{r.title}</div>}
-                {r.content && (
-                  <div className="mt-2 text-muted-foreground">{r.content}</div>
-                )}
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </main>
   );
 }

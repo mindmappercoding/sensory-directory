@@ -31,7 +31,6 @@ export async function listVenues(filters: Filters) {
   }
 
   if (filters.q) {
-    // ✅ NAME ONLY search (as you requested)
     const q = filters.q.trim();
     if (q) {
       and.push({
@@ -66,7 +65,8 @@ export async function listVenues(filters: Filters) {
       tags: true,
       verifiedAt: true,
       coverImageUrl: true,
-      // ✅ only include VISIBLE reviews for computing avg/count
+
+      // ✅ match detail-page behaviour: only VISIBLE reviews affect stats
       reviews: {
         where: visibleReviewsWhere,
         select: { rating: true },

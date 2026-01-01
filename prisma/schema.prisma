@@ -106,14 +106,19 @@ model Venue {
   lng         Float?
   geohash     String?
 
-  tags        String[] // keep for MVP, but enforce in code
+  tags        String[]
 
   coverImageUrl String?
   imageUrls     String[]
 
   confidenceScore Int?
-  reviewCount     Int      @default(0)
+  reviewCount     Int       @default(0)   // keep for compatibility (we'll set this = visibleReviewCount)
   lastReviewedAt  DateTime?
+
+  // ✅ NEW: stored stats (visible-only for avg)
+  avgRating          Float?
+  visibleReviewCount Int       @default(0)
+  hiddenReviewCount  Int       @default(0)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -160,17 +165,14 @@ model Facilities {
 
 model Review {
   id            String   @id @default(auto()) @map("_id") @db.ObjectId
-
   venueId       String   @db.ObjectId
   venue         Venue    @relation(fields: [venueId], references: [id])
 
-  // ✅ require auth
-  authorId      String   @db.ObjectId
-  author        User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  authorName    String?
+  authorId      String   // ✅ make required (logged-in reviews only)
+  author        User     @relation(fields: [authorId], references: [id]) // ✅ opposite relation
 
-  authorName    String?  // optional (can store snapshot of name)
-
-  rating        Int      // 1-5
+  rating        Int
   title         String?
   content       String?
   visitTimeHint String?
@@ -181,15 +183,16 @@ model Review {
   quietSpace    Boolean?
   sensoryHours  Boolean?
 
+  hiddenAt      DateTime?
+  hiddenBy      String?
+  hideReason    String?
+
   createdAt     DateTime @default(now())
-  hiddenAt DateTime?
 
   @@index([venueId])
-  @@index([authorId])
   @@index([createdAt])
-
-  // ✅ 1 review per user per venue
-  @@unique([venueId, authorId])
+  @@index([authorId])
+  @@unique([venueId, authorId]) // one review per user per venue
 }
 
 model VenueSubmission {
