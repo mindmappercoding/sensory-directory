@@ -5,7 +5,7 @@ export async function recomputeVenueReviewStats(
   tx: Prisma.TransactionClient,
   venueId: string
 ) {
-  // ✅ Visible = hiddenAt is null (works reliably with Mongo + Prisma)
+  // ✅ Visible = hiddenAt is null
   const visibleAgg = await tx.review.aggregate({
     where: { venueId, hiddenAt: null },
     _count: { _all: true },
@@ -19,16 +19,23 @@ export async function recomputeVenueReviewStats(
   });
 
   const visibleCount = visibleAgg._count._all;
+
+  // ✅ Total reviews should include BOTH visible + hidden (so hiding does NOT reduce reviewCount)
+  const totalCount = visibleCount + hiddenCount;
+
+  // ✅ Avg rating stays based on VISIBLE reviews only (so hiding affects avg, as expected)
   const avgRating = visibleAgg._avg.rating ?? null;
+
+  // ✅ Last reviewed is based on latest VISIBLE review (public-facing)
   const lastReviewedAt = visibleAgg._max.createdAt ?? null;
 
   await tx.venue.update({
     where: { id: venueId },
     data: {
-      // keep existing field working everywhere
-      reviewCount: visibleCount,
+      // ✅ reviewCount = total (visible + hidden)
+      reviewCount: totalCount,
 
-      // stored fields
+      // stored breakdown + visible-only average
       visibleReviewCount: visibleCount,
       hiddenReviewCount: hiddenCount,
       avgRating,
@@ -36,5 +43,5 @@ export async function recomputeVenueReviewStats(
     },
   });
 
-  return { visibleCount, hiddenCount, avgRating, lastReviewedAt };
+  return { totalCount, visibleCount, hiddenCount, avgRating, lastReviewedAt };
 }
