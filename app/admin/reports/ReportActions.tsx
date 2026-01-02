@@ -119,58 +119,40 @@ export default function ReportActions({ reportId, reviewId }: Props) {
     });
   };
 
-  // ✅ Delete: permanently delete review + close report
   const handleDeleteReview = () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to permanently delete this review? This cannot be undone."
-      )
-    ) {
-      return;
-    }
+  if (
+    !window.confirm(
+      "Are you sure you want to permanently delete this review? This cannot be undone."
+    )
+  ) {
+    return;
+  }
 
-    startTransition(async () => {
-      try {
-        const deleteRes = await fetch(`/api/admin/reviews/${reviewId}`, {
-          method: "DELETE",
-          cache: "no-store",
-        });
+  startTransition(async () => {
+    try {
+      const deleteRes = await fetch(`/api/admin/reviews/${reviewId}`, {
+        method: "DELETE",
+        cache: "no-store",
+      });
 
-        const deleteData = await deleteRes.json().catch(() => ({} as any));
+      const deleteData = await deleteRes.json().catch(() => ({} as any));
 
-        if (!deleteRes.ok) {
-          toast.error(deleteData?.error ?? "Failed to delete review.");
-          return;
-        }
-
-        // Close the report once the review is gone
-        const reportRes = await fetch(`/api/admin/review-reports/${reportId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "RESOLVED" }),
-          cache: "no-store",
-        });
-
-        const reportData = await reportRes.json().catch(() => ({} as any));
-
-        if (!reportRes.ok) {
-          toast.error(
-            reportData?.error ??
-              "Review deleted, but report status failed to update."
-          );
-          return;
-        }
-
-        toast.success("Review deleted", {
-          description: "The review has been removed and stats updated.",
-        });
-
-        router.refresh();
-      } catch {
-        toast.error("Something went wrong while deleting the review.");
+      if (!deleteRes.ok) {
+        toast.error(deleteData?.error ?? "Failed to delete review.");
+        return;
       }
-    });
-  };
+
+      toast.success("Review deleted", {
+        description:
+          "The review has been removed and venue stats have been updated.",
+      });
+
+      router.refresh();
+    } catch {
+      toast.error("Something went wrong while deleting the review.");
+    }
+  });
+};
 
   return (
     <div className="flex flex-wrap gap-2">
@@ -189,7 +171,7 @@ export default function ReportActions({ reportId, reviewId }: Props) {
         disabled={pending}
         onClick={handleDismiss}
       >
-        {pending ? "Working..." : "Dismiss"}
+        {pending ? "Working..." : "Dismiss (keep review)"}
       </Button>
 
       <Button

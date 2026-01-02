@@ -18,12 +18,29 @@ export async function PATCH(
       );
     }
 
+    // 🔹 First, check the report actually exists
+    const existing = await prisma.reviewReport.findUnique({
+      where: { id },
+      select: { id: true },
+    });
+
+    if (!existing) {
+      // This is the "No record was found for an update" case you were seeing
+      return NextResponse.json(
+        { error: "Report not found." },
+        { status: 404 }
+      );
+    }
+
     const updated = await prisma.reviewReport.update({
       where: { id },
       data: {
         status,
         resolvedAt: new Date(),
-        resolutionNote: typeof body?.resolutionNote === "string" ? body.resolutionNote : null,
+        resolutionNote:
+          typeof body?.resolutionNote === "string"
+            ? body.resolutionNote
+            : null,
       },
       select: { id: true, status: true },
     });

@@ -1,24 +1,39 @@
+// app/api/admin/reviews/[reviewId]/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { recomputeVenueReviewStats } from "@/lib/review-stats";
 
+// ✅ HIDE / UNHIDE (leave this as you had it if it's working)
 export async function PATCH(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ reviewId: string }> }
 ) {
   const { reviewId } = await params;
 
   try {
+    const body = (await req.json().catch(() => null)) as
+      | { hidden?: boolean }
+      | null;
+
     const existing = await prisma.review.findUnique({
       where: { id: reviewId },
       select: { id: true, venueId: true, hiddenAt: true },
     });
 
     if (!existing) {
-      return NextResponse.json({ error: "Review not found." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Review not found." },
+        { status: 404 }
+      );
     }
 
-    const nextHiddenAt = existing.hiddenAt ? null : new Date();
+    // If body.hidden provided, respect it; otherwise toggle
+    let nextHiddenAt: Date | null;
+    if (body && typeof body.hidden === "boolean") {
+      nextHiddenAt = body.hidden ? new Date() : null;
+    } else {
+      nextHiddenAt = existing.hiddenAt ? null : new Date();
+    }
 
     const venueStats = await prisma.$transaction(async (tx) => {
       await tx.review.update({
@@ -27,7 +42,6 @@ export async function PATCH(
         select: { id: true },
       });
 
-      // ✅ THIS is what updates Venue.visibleReviewCount/hiddenReviewCount/avgRating in Mongo
       return recomputeVenueReviewStats(tx as any, existing.venueId);
     });
 
@@ -44,6 +58,7 @@ export async function PATCH(
   }
 }
 
+// ✅ DELETE = delete review + its reports + recompute stats
 export async function DELETE(
   _req: Request,
   { params }: { params: Promise<{ reviewId: string }> }
@@ -57,13 +72,24 @@ export async function DELETE(
     });
 
     if (!existing) {
-      return NextResponse.json({ error: "Review not found." }, { status: 404 });
+      return NextResponse.json(
+        { error: "Review not found." },
+        { status: 404 }
+      );
     }
 
     const venueStats = await prisma.$transaction(async (tx) => {
-      await tx.review.delete({ where: { id: reviewId } });
+      // 🔑 delete all reports linked to this review first
+      await tx.reviewReport.deleteMany({
+        where: { reviewId },
+      });
 
-      // ✅ recompute + persist stored stats
+      // then delete the review itself
+      await tx.review.delete({
+        where: { id: reviewId },
+      });
+
+      // recompute venue stats
       return recomputeVenueReviewStats(tx as any, existing.venueId);
     });
 
