@@ -1,6 +1,5 @@
 // lib/venues.ts
 import { prisma } from "@/lib/prisma";
-import type { SensoryLevel } from "@prisma/client";
 
 export type Filters = {
   q?: string;
@@ -9,70 +8,48 @@ export type Filters = {
   sensoryHours?: "true" | "false";
   quietSpace?: "true" | "false";
 
-  // ✅ NEW
-  noiseLevel?: SensoryLevel;
-  lighting?: SensoryLevel;
-  crowding?: SensoryLevel;
+  noiseLevel?: string;
+  lighting?: string;
+  crowding?: string;
 
-  // ✅ optional sorting
-  sort?: "newest" | "recentlyReviewed" | "highestRated" | "mostReviewed";
+  sort?: "newest" | "recentlyReviewed" | "highestRated" | "mostReviewed" | "";
 };
 
-function normalizeTagToken(t: string) {
-  return t
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N}\s-]/gu, "")
-    .replace(/\s+/g, " ");
-}
-
-function tokenizeQuery(q: string) {
-  return q
-    .split(/[\s,]+/g)
-    .map((t) => t.trim())
-    .filter(Boolean)
-    .slice(0, 6);
+function normalizeTag(t: string) {
+  return t.toLowerCase().trim();
 }
 
 export async function listVenues(filters: Filters) {
   const and: any[] = [];
 
-  // ✅ exclude archived
+  // ✅ Always exclude archived venues
   and.push({
     OR: [{ archivedAt: null }, { archivedAt: { isSet: false } }],
   });
 
   if (filters.city?.trim()) {
-    // keep forgiving; change to equals() if you want strict matching
-    and.push({ city: { contains: filters.city.trim(), mode: "insensitive" } });
+    // more forgiving than equals()
+    and.push({
+      city: { contains: filters.city.trim(), mode: "insensitive" },
+    });
   }
 
   if (filters.tags?.length) {
-    const tags = filters.tags.map((t) => normalizeTagToken(t));
+    const tags = filters.tags.map(normalizeTag);
     and.push({ tags: { hasSome: tags } });
   }
 
   if (filters.q?.trim()) {
-    const terms = tokenizeQuery(filters.q.trim());
-
-    // every term must match at least one field
+    const q = filters.q.trim();
     and.push({
-      AND: terms.map((raw) => {
-        const term = raw;
-        const tagToken = normalizeTagToken(raw);
-        const tagCompact = tagToken.replace(/\s+/g, ""); // "soft play" -> "softplay"
-
-        return {
-          OR: [
-            { name: { contains: term, mode: "insensitive" } },
-            { description: { contains: term, mode: "insensitive" } },
-            { city: { contains: term, mode: "insensitive" } },
-            { postcode: { contains: term, mode: "insensitive" } },
-            { tags: { has: tagToken } },
-            tagCompact !== tagToken ? { tags: { has: tagCompact } } : undefined,
-          ].filter(Boolean),
-        };
-      }),
+      OR: [
+        { name: { contains: q, mode: "insensitive" } },
+        { description: { contains: q, mode: "insensitive" } },
+        { city: { contains: q, mode: "insensitive" } },
+        { postcode: { contains: q, mode: "insensitive" } },
+        // If q matches a tag token exactly (common case)
+        { tags: { has: normalizeTag(q) } },
+      ],
     });
   }
 
@@ -88,46 +65,52 @@ export async function listVenues(filters: Filters) {
     });
   }
 
-  // ✅ NEW sensory level filters
+  // ✅ NEW: noise / lighting / crowding filters (exact match)
   if (filters.noiseLevel) {
-    and.push({ sensory: { is: { noiseLevel: filters.noiseLevel } } });
+    and.push({ sensory: { is: { noiseLevel: filters.noiseLevel as any } } });
   }
+
   if (filters.lighting) {
-    and.push({ sensory: { is: { lighting: filters.lighting } } });
+    and.push({ sensory: { is: { lighting: filters.lighting as any } } });
   }
+
   if (filters.crowding) {
-    and.push({ sensory: { is: { crowding: filters.crowding } } });
+    and.push({ sensory: { is: { crowding: filters.crowding as any } } });
   }
 
   const where = and.length ? { AND: and } : {};
 
-  // ✅ sorting
-  const orderBy: any[] = [{ verifiedAt: "desc" }];
-  switch (filters.sort) {
-    case "highestRated":
-      orderBy.push(
-        { avgRating: "desc" },
-        { visibleReviewCount: "desc" },
-        { lastReviewedAt: "desc" },
-        { createdAt: "desc" }
-      );
-      break;
-    case "mostReviewed":
-      orderBy.push(
-        { visibleReviewCount: "desc" },
-        { avgRating: "desc" },
-        { lastReviewedAt: "desc" },
-        { createdAt: "desc" }
-      );
-      break;
-    case "recentlyReviewed":
-      orderBy.push({ lastReviewedAt: "desc" }, { createdAt: "desc" });
-      break;
-    case "newest":
-      orderBy.push({ createdAt: "desc" });
-      break;
-    default:
-      orderBy.push({ lastReviewedAt: "desc" }, { createdAt: "desc" });
+  /**
+   * ✅ Sorting
+   * Important: when the user chooses a sort, we should NOT force Verified first,
+   * otherwise a 5★ unverified venue will be pushed down (which is what you’re seeing).
+   */
+  const sort = filters.sort ?? "";
+  const orderBy: any[] = [];
+
+  if (!sort) {
+    // default "best match"
+    orderBy.push({ verifiedAt: "desc" }, { lastReviewedAt: "desc" }, { createdAt: "desc" });
+  } else if (sort === "highestRated") {
+    orderBy.push(
+      { avgRating: "desc" },
+      { visibleReviewCount: "desc" }, // tie-breaker: more visible ratings
+      { lastReviewedAt: "desc" },
+      { createdAt: "desc" },
+      { verifiedAt: "desc" } // only as a late tie-breaker
+    );
+  } else if (sort === "mostReviewed") {
+    orderBy.push(
+      { reviewCount: "desc" }, // total reviews (your current rule)
+      { avgRating: "desc" },
+      { lastReviewedAt: "desc" },
+      { createdAt: "desc" },
+      { verifiedAt: "desc" }
+    );
+  } else if (sort === "recentlyReviewed") {
+    orderBy.push({ lastReviewedAt: "desc" }, { createdAt: "desc" }, { verifiedAt: "desc" });
+  } else if (sort === "newest") {
+    orderBy.push({ createdAt: "desc" }, { verifiedAt: "desc" });
   }
 
   const rows = await prisma.venue.findMany({
@@ -142,22 +125,22 @@ export async function listVenues(filters: Filters) {
       tags: true,
       verifiedAt: true,
       coverImageUrl: true,
+      createdAt: true,
 
-      // ✅ stored stats (fast + consistent)
+      // ✅ stored review stats (fast + sortable)
       avgRating: true,
+      reviewCount: true, // your "total" count (hidden + visible)
       visibleReviewCount: true,
-      reviewCount: true,
       lastReviewedAt: true,
     },
   });
 
-  // keep card shape stable
   return rows.map((v) => ({
     ...v,
-    reviewCount: v.visibleReviewCount ?? 0, // public-facing count
+    // Keep the card API as you already use it:
+    // - reviewCount = total (your current rule)
+    // - avgRating = stored value (based on visible only, in your recompute function)
+    reviewCount: v.reviewCount ?? 0,
     avgRating: typeof v.avgRating === "number" ? v.avgRating : null,
-
-    // optional (if you ever want “total reviews incl hidden” on admin pages)
-    totalReviewCount: v.reviewCount ?? 0,
   }));
 }

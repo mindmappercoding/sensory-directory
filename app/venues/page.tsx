@@ -10,15 +10,6 @@ export const revalidate = 0;
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-function parseTagsParam(val: unknown): string[] | undefined {
-  if (typeof val !== "string" || !val.trim()) return undefined;
-  const tags = val
-    .split(",")
-    .map((t) => t.trim())
-    .filter(Boolean);
-  return tags.length ? tags : undefined;
-}
-
 export default async function VenuesPage({
   searchParams,
 }: {
@@ -29,7 +20,11 @@ export default async function VenuesPage({
   const filters = {
     q: typeof sp.q === "string" ? sp.q : undefined,
     city: typeof sp.city === "string" ? sp.city : undefined,
-    tags: parseTagsParam(sp.tags),
+    tags:
+      typeof sp.tags === "string"
+        ? sp.tags.split(",").filter(Boolean)
+        : undefined,
+
     sensoryHours:
       typeof sp.sensoryHours === "string"
         ? (sp.sensoryHours as "true" | "false")
@@ -38,12 +33,12 @@ export default async function VenuesPage({
       typeof sp.quietSpace === "string"
         ? (sp.quietSpace as "true" | "false")
         : undefined,
-    noiseLevel:
-      typeof sp.noiseLevel === "string" ? (sp.noiseLevel as any) : undefined,
-    lighting:
-      typeof sp.lighting === "string" ? (sp.lighting as any) : undefined,
-    crowding:
-      typeof sp.crowding === "string" ? (sp.crowding as any) : undefined,
+
+    noiseLevel: typeof sp.noiseLevel === "string" ? (sp.noiseLevel as any) : undefined,
+    lighting: typeof sp.lighting === "string" ? (sp.lighting as any) : undefined,
+    crowding: typeof sp.crowding === "string" ? (sp.crowding as any) : undefined,
+
+    sort: typeof sp.sort === "string" ? (sp.sort as any) : undefined,
   };
 
   const venues = await listVenues(filters);
@@ -104,8 +99,16 @@ export default async function VenuesPage({
               {venues.map((v: any) => {
                 const src = v.coverImageUrl || "/600x400.png";
                 const hasReviews = (v.reviewCount ?? 0) > 0;
-                const avg =
-                  typeof v.avgRating === "number" ? v.avgRating : null;
+                const avg = typeof v.avgRating === "number" ? v.avgRating : null;
+
+                const added =
+                  v.createdAt
+                    ? new Date(v.createdAt).toLocaleDateString("en-GB", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })
+                    : null;
 
                 return (
                   <Link
@@ -137,6 +140,13 @@ export default async function VenuesPage({
                           <div className="mt-1 text-sm text-muted-foreground">
                             {[v.city, v.postcode].filter(Boolean).join(" • ")}
                           </div>
+
+                          {/* ✅ Added date */}
+                          {added && (
+                            <div className="mt-1 text-xs text-muted-foreground">
+                              Added {added}
+                            </div>
+                          )}
 
                           <div className="mt-2 text-xs text-muted-foreground">
                             {hasReviews && avg !== null ? (

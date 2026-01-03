@@ -24,6 +24,14 @@ const LEVELS = [
   { value: "VERY_HIGH", label: "Very high" },
 ] as const;
 
+const SORTS = [
+  { value: "", label: "Best match" },
+  { value: "newest", label: "Newest" },
+  { value: "recentlyReviewed", label: "Recently reviewed" },
+  { value: "highestRated", label: "Highest rated" },
+  { value: "mostReviewed", label: "Most reviewed" },
+] as const;
+
 function parseTagsParam(val: string | null) {
   if (!val) return [];
   return val
@@ -46,7 +54,7 @@ export default function VenueFilters({
   resultsCount,
 }: {
   variant?: "panel" | "bar";
-  resultsCount?: number; // ✅ NEW
+  resultsCount?: number;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -59,10 +67,12 @@ export default function VenueFilters({
   const [sensoryHours, setSensoryHours] = useState(""); // "", "true", "false"
   const [quietSpace, setQuietSpace] = useState("");
 
-  // ✅ NEW
   const [noiseLevel, setNoiseLevel] = useState("");
   const [lighting, setLighting] = useState("");
   const [crowding, setCrowding] = useState("");
+
+  // ✅ NEW: sort
+  const [sort, setSort] = useState("");
 
   const [open, setOpen] = useState(true);
 
@@ -77,6 +87,8 @@ export default function VenueFilters({
     setNoiseLevel(sp.get("noiseLevel") ?? "");
     setLighting(sp.get("lighting") ?? "");
     setCrowding(sp.get("crowding") ?? "");
+
+    setSort(sp.get("sort") ?? "");
   }, [sp]);
 
   const qDebounced = useDebouncedValue(q, 250);
@@ -96,6 +108,7 @@ export default function VenueFilters({
     noiseLevel?: string;
     lighting?: string;
     crowding?: string;
+    sort?: string;
   }) {
     const params = new URLSearchParams(urlString);
 
@@ -112,6 +125,8 @@ export default function VenueFilters({
     setParam(params, "noiseLevel", next.noiseLevel ?? noiseLevel);
     setParam(params, "lighting", next.lighting ?? lighting);
     setParam(params, "crowding", next.crowding ?? crowding);
+
+    setParam(params, "sort", next.sort ?? sort);
 
     startTransition(() => {
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -144,10 +159,12 @@ export default function VenueFilters({
     setLighting("");
     setCrowding("");
 
+    setSort("");
+
     startTransition(() => router.replace(pathname, { scroll: false }));
   }
 
-  // ✅ FIX: trim() so whitespace doesn’t count as “active”
+  // how many filters applied (NOT results)
   const activeCount =
     (qDebounced.trim() ? 1 : 0) +
     (city.trim() ? 1 : 0) +
@@ -159,6 +176,7 @@ export default function VenueFilters({
     (crowding ? 1 : 0);
 
   const isBar = variant === "bar";
+  const sortLabel = SORTS.find((s) => s.value === sort)?.label ?? "Best match";
 
   return (
     <div
@@ -187,6 +205,12 @@ export default function VenueFilters({
                 {typeof resultsCount === "number" && (
                   <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">
                     {resultsCount} result{resultsCount === 1 ? "" : "s"}
+                  </span>
+                )}
+
+                {sort && (
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">
+                    Sorted: {sortLabel}
                   </span>
                 )}
 
@@ -234,9 +258,9 @@ export default function VenueFilters({
         {isBar && (
           <div className="mx-auto max-w-7xl  py-4">
             <div className="rounded-3xl bg-card shadow-sm ring-1 ring-border/50 p-4 sm:p-5 space-y-4">
-              {/* ✅ Row 1: Search / City / Hours / Quiet */}
-              <div className="grid gap-3 lg:grid-cols-4 lg:items-end">
-                <label className="text-sm">
+              {/* Row 1 */}
+              <div className="grid gap-3 lg:grid-cols-5 lg:items-end">
+                <label className="text-sm lg:col-span-2">
                   <div className="mb-1 font-medium">Search</div>
                   <input
                     value={q}
@@ -292,7 +316,7 @@ export default function VenueFilters({
                 </label>
               </div>
 
-              {/* ✅ Row 2: Noise / Lighting / Crowding */}
+              {/* Row 2: Noise / Lighting / Crowding */}
               <div className="grid gap-3 lg:grid-cols-3">
                 <label className="text-sm">
                   <div className="mb-1 font-medium">Noise</div>
@@ -343,6 +367,27 @@ export default function VenueFilters({
                     {LEVELS.map((l) => (
                       <option key={l.value} value={l.value}>
                         {l.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+
+              {/* Row 3: Sort */}
+              <div className="grid gap-3 lg:grid-cols-3">
+                <label className="text-sm">
+                  <div className="mb-1 font-medium">Sort by</div>
+                  <select
+                    value={sort}
+                    onChange={(e) => {
+                      setSort(e.target.value);
+                      pushState({ sort: e.target.value });
+                    }}
+                    className="w-full rounded-xl border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    {SORTS.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
                       </option>
                     ))}
                   </select>
