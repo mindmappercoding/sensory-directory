@@ -1,42 +1,79 @@
 // lib/venues.ts
 import { prisma } from "@/lib/prisma";
+import type { SensoryLevel } from "@prisma/client";
 
-type Filters = {
-  q?: string; // search venue name only (MVP)
+export type Filters = {
+  q?: string;
   city?: string;
   tags?: string[];
   sensoryHours?: "true" | "false";
   quietSpace?: "true" | "false";
+
+  // ✅ NEW
+  noiseLevel?: SensoryLevel;
+  lighting?: SensoryLevel;
+  crowding?: SensoryLevel;
+
+  // ✅ optional sorting
+  sort?: "newest" | "recentlyReviewed" | "highestRated" | "mostReviewed";
 };
 
-const visibleReviewsWhere = {
-  OR: [{ hiddenAt: null }, { hiddenAt: { isSet: false } }],
-};
+function normalizeTagToken(t: string) {
+  return t
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}\s-]/gu, "")
+    .replace(/\s+/g, " ");
+}
+
+function tokenizeQuery(q: string) {
+  return q
+    .split(/[\s,]+/g)
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .slice(0, 6);
+}
 
 export async function listVenues(filters: Filters) {
   const and: any[] = [];
 
-  // ✅ Always exclude archived venues
+  // ✅ exclude archived
   and.push({
     OR: [{ archivedAt: null }, { archivedAt: { isSet: false } }],
   });
 
-  if (filters.city) {
-    and.push({ city: { equals: filters.city.trim(), mode: "insensitive" } });
+  if (filters.city?.trim()) {
+    // keep forgiving; change to equals() if you want strict matching
+    and.push({ city: { contains: filters.city.trim(), mode: "insensitive" } });
   }
 
   if (filters.tags?.length) {
-    const tags = filters.tags.map((t) => t.toLowerCase());
+    const tags = filters.tags.map((t) => normalizeTagToken(t));
     and.push({ tags: { hasSome: tags } });
   }
 
-  if (filters.q) {
-    const q = filters.q.trim();
-    if (q) {
-      and.push({
-        name: { contains: q, mode: "insensitive" },
-      });
-    }
+  if (filters.q?.trim()) {
+    const terms = tokenizeQuery(filters.q.trim());
+
+    // every term must match at least one field
+    and.push({
+      AND: terms.map((raw) => {
+        const term = raw;
+        const tagToken = normalizeTagToken(raw);
+        const tagCompact = tagToken.replace(/\s+/g, ""); // "soft play" -> "softplay"
+
+        return {
+          OR: [
+            { name: { contains: term, mode: "insensitive" } },
+            { description: { contains: term, mode: "insensitive" } },
+            { city: { contains: term, mode: "insensitive" } },
+            { postcode: { contains: term, mode: "insensitive" } },
+            { tags: { has: tagToken } },
+            tagCompact !== tagToken ? { tags: { has: tagCompact } } : undefined,
+          ].filter(Boolean),
+        };
+      }),
+    });
   }
 
   if (filters.sensoryHours) {
@@ -51,11 +88,51 @@ export async function listVenues(filters: Filters) {
     });
   }
 
+  // ✅ NEW sensory level filters
+  if (filters.noiseLevel) {
+    and.push({ sensory: { is: { noiseLevel: filters.noiseLevel } } });
+  }
+  if (filters.lighting) {
+    and.push({ sensory: { is: { lighting: filters.lighting } } });
+  }
+  if (filters.crowding) {
+    and.push({ sensory: { is: { crowding: filters.crowding } } });
+  }
+
   const where = and.length ? { AND: and } : {};
+
+  // ✅ sorting
+  const orderBy: any[] = [{ verifiedAt: "desc" }];
+  switch (filters.sort) {
+    case "highestRated":
+      orderBy.push(
+        { avgRating: "desc" },
+        { visibleReviewCount: "desc" },
+        { lastReviewedAt: "desc" },
+        { createdAt: "desc" }
+      );
+      break;
+    case "mostReviewed":
+      orderBy.push(
+        { visibleReviewCount: "desc" },
+        { avgRating: "desc" },
+        { lastReviewedAt: "desc" },
+        { createdAt: "desc" }
+      );
+      break;
+    case "recentlyReviewed":
+      orderBy.push({ lastReviewedAt: "desc" }, { createdAt: "desc" });
+      break;
+    case "newest":
+      orderBy.push({ createdAt: "desc" });
+      break;
+    default:
+      orderBy.push({ lastReviewedAt: "desc" }, { createdAt: "desc" });
+  }
 
   const rows = await prisma.venue.findMany({
     where,
-    orderBy: [{ verifiedAt: "desc" }, { createdAt: "desc" }],
+    orderBy,
     take: 50,
     select: {
       id: true,
@@ -66,22 +143,21 @@ export async function listVenues(filters: Filters) {
       verifiedAt: true,
       coverImageUrl: true,
 
-      // ✅ match detail-page behaviour: only VISIBLE reviews affect stats
-      reviews: {
-        where: visibleReviewsWhere,
-        select: { rating: true },
-      },
+      // ✅ stored stats (fast + consistent)
+      avgRating: true,
+      visibleReviewCount: true,
+      reviewCount: true,
+      lastReviewedAt: true,
     },
   });
 
-  return rows.map((v) => {
-    const reviewCount = v.reviews.length;
-    const avgRating =
-      reviewCount > 0
-        ? v.reviews.reduce((sum, r) => sum + r.rating, 0) / reviewCount
-        : null;
+  // keep card shape stable
+  return rows.map((v) => ({
+    ...v,
+    reviewCount: v.visibleReviewCount ?? 0, // public-facing count
+    avgRating: typeof v.avgRating === "number" ? v.avgRating : null,
 
-    const { reviews, ...rest } = v;
-    return { ...rest, reviewCount, avgRating };
-  });
+    // optional (if you ever want “total reviews incl hidden” on admin pages)
+    totalReviewCount: v.reviewCount ?? 0,
+  }));
 }

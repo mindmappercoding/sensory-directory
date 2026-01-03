@@ -38,6 +38,12 @@ export default async function VenuesPage({
       typeof sp.quietSpace === "string"
         ? (sp.quietSpace as "true" | "false")
         : undefined,
+    noiseLevel:
+      typeof sp.noiseLevel === "string" ? (sp.noiseLevel as any) : undefined,
+    lighting:
+      typeof sp.lighting === "string" ? (sp.lighting as any) : undefined,
+    crowding:
+      typeof sp.crowding === "string" ? (sp.crowding as any) : undefined,
   };
 
   const venues = await listVenues(filters);
@@ -63,7 +69,7 @@ export default async function VenuesPage({
       <section className="sticky top-14 z-40">
         <div className="rounded-3xl border bg-background/80 backdrop-blur">
           <div className="p-3 sm:p-4">
-            <VenueFilters variant="bar" />
+            <VenueFilters variant="bar" resultsCount={venues.length} />
           </div>
         </div>
       </section>

@@ -15,6 +15,15 @@ const AVAILABLE_TAGS = [
   "outdoor",
 ];
 
+const LEVELS = [
+  { value: "", label: "Any" },
+  { value: "VERY_LOW", label: "Very low" },
+  { value: "LOW", label: "Low" },
+  { value: "MEDIUM", label: "Medium" },
+  { value: "HIGH", label: "High" },
+  { value: "VERY_HIGH", label: "Very high" },
+] as const;
+
 function parseTagsParam(val: string | null) {
   if (!val) return [];
   return val
@@ -34,8 +43,10 @@ function useDebouncedValue<T>(value: T, delayMs: number) {
 
 export default function VenueFilters({
   variant = "panel",
+  resultsCount,
 }: {
   variant?: "panel" | "bar";
+  resultsCount?: number; // ✅ NEW
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -48,7 +59,11 @@ export default function VenueFilters({
   const [sensoryHours, setSensoryHours] = useState(""); // "", "true", "false"
   const [quietSpace, setQuietSpace] = useState("");
 
-  // NEW: collapsible state (default open on desktop-ish, but you can change default)
+  // ✅ NEW
+  const [noiseLevel, setNoiseLevel] = useState("");
+  const [lighting, setLighting] = useState("");
+  const [crowding, setCrowding] = useState("");
+
   const [open, setOpen] = useState(true);
 
   // Sync from URL
@@ -58,6 +73,10 @@ export default function VenueFilters({
     setTags(parseTagsParam(sp.get("tags")));
     setSensoryHours(sp.get("sensoryHours") ?? "");
     setQuietSpace(sp.get("quietSpace") ?? "");
+
+    setNoiseLevel(sp.get("noiseLevel") ?? "");
+    setLighting(sp.get("lighting") ?? "");
+    setCrowding(sp.get("crowding") ?? "");
   }, [sp]);
 
   const qDebounced = useDebouncedValue(q, 250);
@@ -74,6 +93,9 @@ export default function VenueFilters({
     tags?: string[];
     sensoryHours?: string;
     quietSpace?: string;
+    noiseLevel?: string;
+    lighting?: string;
+    crowding?: string;
   }) {
     const params = new URLSearchParams(urlString);
 
@@ -86,6 +108,10 @@ export default function VenueFilters({
     );
     setParam(params, "sensoryHours", next.sensoryHours ?? sensoryHours);
     setParam(params, "quietSpace", next.quietSpace ?? quietSpace);
+
+    setParam(params, "noiseLevel", next.noiseLevel ?? noiseLevel);
+    setParam(params, "lighting", next.lighting ?? lighting);
+    setParam(params, "crowding", next.crowding ?? crowding);
 
     startTransition(() => {
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -113,15 +139,24 @@ export default function VenueFilters({
     setTags([]);
     setSensoryHours("");
     setQuietSpace("");
+
+    setNoiseLevel("");
+    setLighting("");
+    setCrowding("");
+
     startTransition(() => router.replace(pathname, { scroll: false }));
   }
 
+  // ✅ FIX: trim() so whitespace doesn’t count as “active”
   const activeCount =
-    (qDebounced ? 1 : 0) +
+    (qDebounced.trim() ? 1 : 0) +
     (city.trim() ? 1 : 0) +
     (tags.length ? 1 : 0) +
     (sensoryHours ? 1 : 0) +
-    (quietSpace ? 1 : 0);
+    (quietSpace ? 1 : 0) +
+    (noiseLevel ? 1 : 0) +
+    (lighting ? 1 : 0) +
+    (crowding ? 1 : 0);
 
   const isBar = variant === "bar";
 
@@ -133,7 +168,6 @@ export default function VenueFilters({
           : "rounded-3xl bg-card shadow-sm ring-1 ring-border/50 p-4 sm:p-5 space-y-4"
       }
     >
-      {/* BAR HEADER (always visible in bar mode) */}
       {isBar && (
         <div className="w-full border-b bg-background">
           <div className="mx-auto max-w-7xl ">
@@ -141,19 +175,31 @@ export default function VenueFilters({
               <div>
                 <div className="text-sm font-semibold">Filters</div>
                 <div className="text-xs text-muted-foreground mt-0.5">
-                  Search is <span className="text-foreground/90">venue name only</span>.
+                  Search matches{" "}
+                  <span className="text-foreground/90">
+                    name, description, tags, city & postcode
+                  </span>
+                  .
                 </div>
               </div>
 
               <div className="flex items-center gap-2">
+                {typeof resultsCount === "number" && (
+                  <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">
+                    {resultsCount} result{resultsCount === 1 ? "" : "s"}
+                  </span>
+                )}
+
                 {activeCount > 0 && (
                   <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">
-                    {activeCount} active
+                    {activeCount} filter{activeCount === 1 ? "" : "s"}
                   </span>
                 )}
 
                 {isPending && (
-                  <span className="text-xs text-muted-foreground">Updating…</span>
+                  <span className="text-xs text-muted-foreground">
+                    Updating…
+                  </span>
                 )}
 
                 <button
@@ -178,29 +224,24 @@ export default function VenueFilters({
         </div>
       )}
 
-      {/* FILTER BODY */}
       <div
         className={
           isBar
-            ? [
-                "w-full",
-                open ? "block" : "hidden",
-                "bg-background",
-              ].join(" ")
+            ? ["w-full", open ? "block" : "hidden", "bg-background"].join(" ")
             : "space-y-4"
         }
       >
         {isBar && (
           <div className="mx-auto max-w-7xl  py-4">
             <div className="rounded-3xl bg-card shadow-sm ring-1 ring-border/50 p-4 sm:p-5 space-y-4">
-              {/* Inputs row */}
-              <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr_0.9fr_0.9fr] lg:items-end">
+              {/* ✅ Row 1: Search / City / Hours / Quiet */}
+              <div className="grid gap-3 lg:grid-cols-4 lg:items-end">
                 <label className="text-sm">
                   <div className="mb-1 font-medium">Search</div>
                   <input
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
-                    placeholder="e.g. Cineworld, Soft Play..."
+                    placeholder="e.g. softplay leeds"
                     className="w-full rounded-xl border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30"
                   />
                 </label>
@@ -247,6 +288,63 @@ export default function VenueFilters({
                     <option value="">Any</option>
                     <option value="true">Yes</option>
                     <option value="false">No</option>
+                  </select>
+                </label>
+              </div>
+
+              {/* ✅ Row 2: Noise / Lighting / Crowding */}
+              <div className="grid gap-3 lg:grid-cols-3">
+                <label className="text-sm">
+                  <div className="mb-1 font-medium">Noise</div>
+                  <select
+                    value={noiseLevel}
+                    onChange={(e) => {
+                      setNoiseLevel(e.target.value);
+                      pushState({ noiseLevel: e.target.value });
+                    }}
+                    className="w-full rounded-xl border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    {LEVELS.map((l) => (
+                      <option key={l.value} value={l.value}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-sm">
+                  <div className="mb-1 font-medium">Lighting</div>
+                  <select
+                    value={lighting}
+                    onChange={(e) => {
+                      setLighting(e.target.value);
+                      pushState({ lighting: e.target.value });
+                    }}
+                    className="w-full rounded-xl border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    {LEVELS.map((l) => (
+                      <option key={l.value} value={l.value}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-sm">
+                  <div className="mb-1 font-medium">Crowding</div>
+                  <select
+                    value={crowding}
+                    onChange={(e) => {
+                      setCrowding(e.target.value);
+                      pushState({ crowding: e.target.value });
+                    }}
+                    className="w-full rounded-xl border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30"
+                  >
+                    {LEVELS.map((l) => (
+                      <option key={l.value} value={l.value}>
+                        {l.label}
+                      </option>
+                    ))}
                   </select>
                 </label>
               </div>
@@ -301,12 +399,7 @@ export default function VenueFilters({
           </div>
         )}
 
-        {/* PANEL MODE (your original layout, just “less borders”) */}
-        {!isBar && (
-          <div className="space-y-4">
-            {/* Keep your existing panel UI here if you still use variant="panel" */}
-          </div>
-        )}
+        {!isBar && <div className="space-y-4">{/* panel variant */}</div>}
       </div>
     </div>
   );
