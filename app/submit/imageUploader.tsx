@@ -25,6 +25,7 @@ export default function ImageUploader({ onChange }: Props) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const coverInputRef = useRef<HTMLInputElement | null>(null);
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
   // ✅ prevent memory leaks from object URLs
@@ -109,6 +110,7 @@ export default function ImageUploader({ onChange }: Props) {
       setCoverPreview(null);
       setImages([]);
       setPreviews([]);
+      if (coverInputRef.current) coverInputRef.current.value = "";
       if (galleryInputRef.current) galleryInputRef.current.value = "";
     } catch (e: any) {
       setError(e?.message ?? "Upload failed.");
@@ -122,59 +124,125 @@ export default function ImageUploader({ onChange }: Props) {
   const queuedTotal = queuedCover + queuedGallery;
 
   return (
-    <div className="rounded-2xl border bg-card p-4 space-y-3">
-      <div>
+    <div className="rounded-2xl border bg-card p-4 space-y-4">
+      {/* COVER */}
+      <div className="space-y-2">
         <div className="text-sm font-medium">Cover image (optional)</div>
+
+        {/* Hidden input */}
         <input
+          ref={coverInputRef}
           type="file"
           accept="image/*"
           onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
-          className="mt-1 block w-full text-sm"
+          className="hidden"
         />
+
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => coverInputRef.current?.click()}
+            disabled={isUploading}
+          >
+            Choose cover image
+          </Button>
+
+          <div className="text-xs text-muted-foreground">
+            {cover ? cover.name : "No cover selected"}
+          </div>
+
+          {cover && (
+            <Button
+              type="button"
+              variant="ghost"
+              className="h-8 px-2 text-xs"
+              onClick={() => setCoverFile(null)}
+              disabled={isUploading}
+            >
+              Remove
+            </Button>
+          )}
+        </div>
+
         {coverPreview && (
-          <div className="mt-2 relative h-40 w-full overflow-hidden rounded-xl border">
-            <Image src={coverPreview} alt="Cover preview" fill className="object-cover" />
+          <div className="relative h-40 w-full overflow-hidden rounded-xl border">
+            <Image
+              src={coverPreview}
+              alt="Cover preview"
+              fill
+              className="object-cover"
+            />
           </div>
         )}
       </div>
 
-      <div>
+      {/* GALLERY */}
+      <div className="space-y-2">
         <div className="flex items-center justify-between gap-3">
           <div className="text-sm font-medium">
-            Gallery images (up to 10){queuedGallery > 0 ? ` • ${queuedGallery} selected` : ""}
+            Gallery images (up to 10)
+            {queuedGallery > 0 ? ` • ${queuedGallery} selected` : ""}
           </div>
+
           {queuedGallery > 0 && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              className="h-8 px-2 text-xs"
               onClick={clearGallery}
-              className="text-xs underline text-muted-foreground"
+              disabled={isUploading}
             >
               Clear
-            </button>
+            </Button>
           )}
         </div>
 
+        {/* Hidden input */}
         <input
           ref={galleryInputRef}
           type="file"
           accept="image/*"
           multiple
           onChange={(e) => addGalleryFiles(Array.from(e.target.files ?? []))}
-          className="mt-1 block w-full text-sm"
+          className="hidden"
         />
 
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => galleryInputRef.current?.click()}
+            disabled={isUploading || queuedGallery >= 10}
+          >
+            {queuedGallery > 0 ? "Add more images" : "Choose gallery images"}
+          </Button>
+
+          <div className="text-xs text-muted-foreground">
+            {queuedGallery === 0
+              ? "No gallery images selected"
+              : `${queuedGallery} selected`}
+          </div>
+        </div>
+
         {previews.length > 0 && (
-          <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {previews.map((src) => (
-              <div key={src} className="relative h-24 overflow-hidden rounded-xl border">
+              <div
+                key={src}
+                className="relative h-24 overflow-hidden rounded-xl border"
+              >
                 <Image src={src} alt="Preview" fill className="object-cover" />
               </div>
             ))}
           </div>
         )}
 
-        <div className="mt-1 text-xs text-muted-foreground">
-          Ready to upload: {queuedTotal === 0 ? "nothing selected" : `${queuedCover ? "1 cover" : "0 cover"} + ${queuedGallery} gallery`}
+        <div className="text-xs text-muted-foreground">
+          Ready to upload:{" "}
+          {queuedTotal === 0
+            ? "nothing selected"
+            : `${queuedCover ? "1 cover" : "0 cover"} + ${queuedGallery} gallery`}
         </div>
       </div>
 
@@ -185,7 +253,8 @@ export default function ImageUploader({ onChange }: Props) {
       </Button>
 
       <div className="text-xs text-muted-foreground">
-        After upload, image URLs are returned — your form must include them in the submit payload.
+        After upload, image URLs are returned — your form must include them in
+        the submit payload.
       </div>
     </div>
   );
