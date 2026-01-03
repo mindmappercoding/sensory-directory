@@ -53,6 +53,10 @@ function levelLabel(v: string) {
   }
 }
 
+function uniq(arr: string[]) {
+  return Array.from(new Set((arr ?? []).filter(Boolean)));
+}
+
 export default function SubmitVenueForm() {
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
@@ -100,6 +104,7 @@ export default function SubmitVenueForm() {
     handleSubmit,
     setValue,
     watch,
+    getValues,
     formState: { errors },
   } = form;
 
@@ -119,6 +124,16 @@ export default function SubmitVenueForm() {
   async function onSubmit(values: VenueSubmissionInput) {
     setServerError(null);
 
+    // ✅ Force-pull latest image fields from RHF state so they always get included
+    const coverImageUrl = getValues("coverImageUrl") ?? "";
+    const imageUrls = getValues("imageUrls") ?? [];
+
+    const payload: VenueSubmissionInput = {
+      ...values,
+      coverImageUrl,
+      imageUrls,
+    };
+
     startTransition(async () => {
       try {
         const res = await fetch("/api/submissions", {
@@ -126,8 +141,8 @@ export default function SubmitVenueForm() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             type: "NEW_VENUE",
-            proposedName: values.proposedName,
-            payload: values,
+            proposedName: payload.proposedName,
+            payload,
           }),
         });
 
@@ -170,12 +185,27 @@ export default function SubmitVenueForm() {
         <div className="mt-4">
           <ImageUploader
             onChange={(next) => {
-              if (typeof next.coverImageUrl === "string") {
+              const prevCover = getValues("coverImageUrl") ?? "";
+              const prevGallery = getValues("imageUrls") ?? [];
+
+              if (typeof next.coverImageUrl === "string" && next.coverImageUrl) {
                 setValue("coverImageUrl", next.coverImageUrl, {
                   shouldDirty: true,
+                  shouldValidate: true,
+                });
+              } else if (!prevCover) {
+                setValue("coverImageUrl", "", {
+                  shouldDirty: true,
+                  shouldValidate: true,
                 });
               }
-              setValue("imageUrls", next.imageUrls ?? [], { shouldDirty: true });
+
+              // ✅ Merge (append) gallery uploads instead of overwriting
+              const merged = uniq([...prevGallery, ...(next.imageUrls ?? [])]).slice(0, 10);
+              setValue("imageUrls", merged, {
+                shouldDirty: true,
+                shouldValidate: true,
+              });
 
               toast.success("Images uploaded", {
                 description: "They’ll be included in your submission.",
@@ -282,7 +312,7 @@ export default function SubmitVenueForm() {
               type="button"
               variant="ghost"
               className="h-8 px-2 text-xs"
-              onClick={() => setValue("tags", [], { shouldDirty: true })}
+              onClick={() => setValue("tags", [], { shouldDirty: true, shouldValidate: true })}
             >
               Clear
             </Button>

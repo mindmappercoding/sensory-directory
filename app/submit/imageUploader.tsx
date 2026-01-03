@@ -1,13 +1,21 @@
-// components/ImageUploader.tsx (or wherever your ImageUploader lives)
 "use client";
 
 import Image from "next/image";
+import * as React from "react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 type Props = {
   onChange: (next: { coverImageUrl?: string; imageUrls: string[] }) => void;
 };
+
+function uniqFiles(files: File[]) {
+  return Array.from(
+    new Map(
+      files.map((f) => [`${f.name}-${f.size}-${f.lastModified}`, f] as const)
+    ).values()
+  );
+}
 
 export default function ImageUploader({ onChange }: Props) {
   const [cover, setCover] = useState<File | null>(null);
@@ -17,34 +25,49 @@ export default function ImageUploader({ onChange }: Props) {
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ lets you pick more images in multiple rounds (append)
   const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
+  // ✅ prevent memory leaks from object URLs
+  React.useEffect(() => {
+    return () => {
+      if (coverPreview) URL.revokeObjectURL(coverPreview);
+      previews.forEach((p) => URL.revokeObjectURL(p));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function setCoverFile(file: File | null) {
+    setError(null);
+
+    // revoke old cover preview
+    if (coverPreview) URL.revokeObjectURL(coverPreview);
+
     setCover(file);
-    if (!file) return setCoverPreview(null);
+    if (!file) {
+      setCoverPreview(null);
+      return;
+    }
     setCoverPreview(URL.createObjectURL(file));
   }
 
   function addGalleryFiles(files: File[]) {
-    // ✅ append, de-dupe by name+size+lastModified, cap at 10
-    setImages((prev) => {
-      const merged = [...prev, ...files];
-      const unique = Array.from(
-        new Map(
-          merged.map((f) => [`${f.name}-${f.size}-${f.lastModified}`, f] as const)
-        ).values()
-      ).slice(0, 10);
+    setError(null);
 
-      setPreviews(unique.map((f) => URL.createObjectURL(f)));
-      return unique;
+    setImages((prev) => {
+      const merged = uniqFiles([...prev, ...files]).slice(0, 10);
+
+      // revoke old previews
+      previews.forEach((p) => URL.revokeObjectURL(p));
+
+      setPreviews(merged.map((f) => URL.createObjectURL(f)));
+      return merged;
     });
 
-    // ✅ allow selecting the same file again later (some browsers need this)
     if (galleryInputRef.current) galleryInputRef.current.value = "";
   }
 
   function clearGallery() {
+    previews.forEach((p) => URL.revokeObjectURL(p));
     setImages([]);
     setPreviews([]);
     if (galleryInputRef.current) galleryInputRef.current.value = "";
@@ -52,6 +75,13 @@ export default function ImageUploader({ onChange }: Props) {
 
   async function upload() {
     setError(null);
+
+    // nothing selected
+    if (!cover && images.length === 0) {
+      setError("Please select a cover and/or gallery images first.");
+      return;
+    }
+
     setIsUploading(true);
 
     try {
@@ -60,20 +90,36 @@ export default function ImageUploader({ onChange }: Props) {
       images.forEach((f) => form.append("images", f));
 
       const res = await fetch("/api/uploads", { method: "POST", body: form });
-      const json = await res.json();
+      const json = await res.json().catch(() => ({}));
 
-      if (!json?.ok) throw new Error(json?.error ?? "Upload failed.");
+      if (!res.ok || !json?.ok) {
+        throw new Error(json?.error ?? "Upload failed.");
+      }
 
       onChange({
         coverImageUrl: json.coverUrl ?? undefined,
         imageUrls: json.imageUrls ?? [],
       });
+
+      // ✅ clear local selection after successful upload
+      if (coverPreview) URL.revokeObjectURL(coverPreview);
+      previews.forEach((p) => URL.revokeObjectURL(p));
+
+      setCover(null);
+      setCoverPreview(null);
+      setImages([]);
+      setPreviews([]);
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
     } catch (e: any) {
       setError(e?.message ?? "Upload failed.");
     } finally {
       setIsUploading(false);
     }
   }
+
+  const queuedCover = cover ? 1 : 0;
+  const queuedGallery = images.length;
+  const queuedTotal = queuedCover + queuedGallery;
 
   return (
     <div className="rounded-2xl border bg-card p-4 space-y-3">
@@ -87,20 +133,17 @@ export default function ImageUploader({ onChange }: Props) {
         />
         {coverPreview && (
           <div className="mt-2 relative h-40 w-full overflow-hidden rounded-xl border">
-            <Image
-              src={coverPreview}
-              alt="Cover preview"
-              fill
-              className="object-cover"
-            />
+            <Image src={coverPreview} alt="Cover preview" fill className="object-cover" />
           </div>
         )}
       </div>
 
       <div>
         <div className="flex items-center justify-between gap-3">
-          <div className="text-sm font-medium">Gallery images (up to 10)</div>
-          {images.length > 0 && (
+          <div className="text-sm font-medium">
+            Gallery images (up to 10){queuedGallery > 0 ? ` • ${queuedGallery} selected` : ""}
+          </div>
+          {queuedGallery > 0 && (
             <button
               type="button"
               onClick={clearGallery}
@@ -123,10 +166,7 @@ export default function ImageUploader({ onChange }: Props) {
         {previews.length > 0 && (
           <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-2">
             {previews.map((src) => (
-              <div
-                key={src}
-                className="relative h-24 overflow-hidden rounded-xl border"
-              >
+              <div key={src} className="relative h-24 overflow-hidden rounded-xl border">
                 <Image src={src} alt="Preview" fill className="object-cover" />
               </div>
             ))}
@@ -134,7 +174,7 @@ export default function ImageUploader({ onChange }: Props) {
         )}
 
         <div className="mt-1 text-xs text-muted-foreground">
-          Tip: you can select images more than once — we’ll append them (up to 10).
+          Ready to upload: {queuedTotal === 0 ? "nothing selected" : `${queuedCover ? "1 cover" : "0 cover"} + ${queuedGallery} gallery`}
         </div>
       </div>
 
@@ -145,7 +185,7 @@ export default function ImageUploader({ onChange }: Props) {
       </Button>
 
       <div className="text-xs text-muted-foreground">
-        After upload, the image URLs are saved into your submission payload.
+        After upload, image URLs are returned — your form must include them in the submit payload.
       </div>
     </div>
   );

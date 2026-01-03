@@ -42,6 +42,17 @@ export async function POST(
 
   const input = parsed.data;
 
+  // ✅ normalize images
+  const coverImageUrl =
+    input.coverImageUrl && input.coverImageUrl.trim().length > 0
+      ? input.coverImageUrl.trim()
+      : null;
+
+  const imageUrls = (input.imageUrls ?? [])
+    .filter((u) => typeof u === "string" && u.trim().length > 0)
+    .map((u) => u.trim())
+    .slice(0, 10);
+
   const venue = await prisma.$transaction(async (tx) => {
     const created = await tx.venue.create({
       data: {
@@ -58,6 +69,10 @@ export async function POST(
         county: input.county ?? null,
 
         tags: input.tags,
+
+        // ✅ THIS was missing:
+        coverImageUrl,
+        imageUrls,
 
         sensory: input.sensory
           ? {
@@ -85,6 +100,7 @@ export async function POST(
             }
           : undefined,
       },
+      select: { id: true },
     });
 
     await tx.venueSubmission.update({
