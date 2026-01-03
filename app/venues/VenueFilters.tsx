@@ -26,6 +26,7 @@ const LEVELS = [
 
 const SORTS = [
   { value: "", label: "Best match" },
+  { value: "nearest", label: "Nearest (postcode)" },
   { value: "newest", label: "Newest" },
   { value: "recentlyReviewed", label: "Recently reviewed" },
   { value: "highestRated", label: "Highest rated" },
@@ -71,7 +72,10 @@ export default function VenueFilters({
   const [lighting, setLighting] = useState("");
   const [crowding, setCrowding] = useState("");
 
-  // ✅ NEW: sort
+  // ✅ NEW: near postcode (distance sort)
+  const [near, setNear] = useState("");
+
+  // ✅ sort
   const [sort, setSort] = useState("");
 
   const [open, setOpen] = useState(true);
@@ -88,10 +92,12 @@ export default function VenueFilters({
     setLighting(sp.get("lighting") ?? "");
     setCrowding(sp.get("crowding") ?? "");
 
+    setNear(sp.get("near") ?? "");
     setSort(sp.get("sort") ?? "");
   }, [sp]);
 
   const qDebounced = useDebouncedValue(q, 250);
+  const nearDebounced = useDebouncedValue(near, 400);
   const urlString = useMemo(() => sp.toString(), [sp]);
 
   function setParam(params: URLSearchParams, key: string, value: string) {
@@ -108,17 +114,19 @@ export default function VenueFilters({
     noiseLevel?: string;
     lighting?: string;
     crowding?: string;
+    near?: string;
     sort?: string;
   }) {
     const params = new URLSearchParams(urlString);
 
-    setParam(params, "q", (next.q ?? qDebounced).trim());
-    setParam(params, "city", (next.city ?? city).trim());
-    setParam(
-      params,
-      "tags",
-      (next.tags ?? tags).length ? (next.tags ?? tags).join(",") : ""
-    );
+    const nextQ = (next.q ?? qDebounced).trim();
+    const nextCity = (next.city ?? city).trim();
+    const nextTags = next.tags ?? tags;
+    const nextNear = (next.near ?? nearDebounced).trim();
+
+    setParam(params, "q", nextQ);
+    setParam(params, "city", nextCity);
+    setParam(params, "tags", nextTags.length ? nextTags.join(",") : "");
     setParam(params, "sensoryHours", next.sensoryHours ?? sensoryHours);
     setParam(params, "quietSpace", next.quietSpace ?? quietSpace);
 
@@ -126,7 +134,18 @@ export default function VenueFilters({
     setParam(params, "lighting", next.lighting ?? lighting);
     setParam(params, "crowding", next.crowding ?? crowding);
 
-    setParam(params, "sort", next.sort ?? sort);
+    // ✅ near postcode
+    setParam(params, "near", nextNear);
+
+    // ✅ if near is set -> force nearest sort
+    const requestedSort = next.sort ?? sort;
+    const effectiveSort = nextNear
+      ? "nearest"
+      : requestedSort === "nearest"
+      ? ""
+      : requestedSort;
+
+    setParam(params, "sort", effectiveSort);
 
     startTransition(() => {
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
@@ -139,6 +158,13 @@ export default function VenueFilters({
     pushState({ q: qDebounced });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [qDebounced]);
+
+  // Auto-apply when debounced near changes
+  useEffect(() => {
+    if ((sp.get("near") ?? "") === nearDebounced) return;
+    pushState({ near: nearDebounced });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nearDebounced]);
 
   function toggleTag(tag: string) {
     const next = tags.includes(tag)
@@ -159,6 +185,7 @@ export default function VenueFilters({
     setLighting("");
     setCrowding("");
 
+    setNear("");
     setSort("");
 
     startTransition(() => router.replace(pathname, { scroll: false }));
@@ -173,10 +200,12 @@ export default function VenueFilters({
     (quietSpace ? 1 : 0) +
     (noiseLevel ? 1 : 0) +
     (lighting ? 1 : 0) +
-    (crowding ? 1 : 0);
+    (crowding ? 1 : 0) +
+    (nearDebounced.trim() ? 1 : 0);
 
   const isBar = variant === "bar";
   const sortLabel = SORTS.find((s) => s.value === sort)?.label ?? "Best match";
+  const isNearActive = !!nearDebounced.trim();
 
   return (
     <div
@@ -197,7 +226,8 @@ export default function VenueFilters({
                   <span className="text-foreground/90">
                     name, description, tags, city & postcode
                   </span>
-                  .
+                  . Use <span className="text-foreground/90">Near postcode</span>{" "}
+                  to sort by distance.
                 </div>
               </div>
 
@@ -208,10 +238,16 @@ export default function VenueFilters({
                   </span>
                 )}
 
-                {sort && (
+                {isNearActive ? (
                   <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">
-                    Sorted: {sortLabel}
+                    Sorted: Nearest
                   </span>
+                ) : (
+                  sort && (
+                    <span className="rounded-full bg-muted px-2.5 py-1 text-[11px] text-muted-foreground">
+                      Sorted: {sortLabel}
+                    </span>
+                  )
                 )}
 
                 {activeCount > 0 && (
@@ -259,7 +295,7 @@ export default function VenueFilters({
           <div className="mx-auto max-w-7xl  py-4">
             <div className="rounded-3xl bg-card shadow-sm ring-1 ring-border/50 p-4 sm:p-5 space-y-4">
               {/* Row 1 */}
-              <div className="grid gap-3 lg:grid-cols-5 lg:items-end">
+              <div className="grid gap-3 lg:grid-cols-6 lg:items-end">
                 <label className="text-sm lg:col-span-2">
                   <div className="mb-1 font-medium">Search</div>
                   <input
@@ -279,6 +315,17 @@ export default function VenueFilters({
                       pushState({ city: e.target.value });
                     }}
                     placeholder="e.g. Leeds"
+                    className="w-full rounded-xl border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </label>
+
+                {/* ✅ NEW: Near postcode */}
+                <label className="text-sm">
+                  <div className="mb-1 font-medium">Near postcode</div>
+                  <input
+                    value={near}
+                    onChange={(e) => setNear(e.target.value)}
+                    placeholder="e.g. LS21 3AB"
                     className="w-full rounded-xl border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30"
                   />
                 </label>
@@ -378,12 +425,13 @@ export default function VenueFilters({
                 <label className="text-sm">
                   <div className="mb-1 font-medium">Sort by</div>
                   <select
-                    value={sort}
+                    value={isNearActive ? "nearest" : sort}
+                    disabled={isNearActive}
                     onChange={(e) => {
                       setSort(e.target.value);
                       pushState({ sort: e.target.value });
                     }}
-                    className="w-full rounded-xl border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30"
+                    className="w-full rounded-xl border bg-background px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-60"
                   >
                     {SORTS.map((s) => (
                       <option key={s.value} value={s.value}>
@@ -391,6 +439,11 @@ export default function VenueFilters({
                       </option>
                     ))}
                   </select>
+                  {isNearActive && (
+                    <div className="mt-1 text-xs text-muted-foreground">
+                      Sorting by distance because “Near postcode” is set.
+                    </div>
+                  )}
                 </label>
               </div>
 

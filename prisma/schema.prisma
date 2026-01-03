@@ -131,6 +131,7 @@ model Venue {
   submissions VenueSubmission[]
   reviews     Review[]
 
+
   @@index([city])
   @@index([postcode])
   @@index([geohash])
