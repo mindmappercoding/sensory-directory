@@ -50,13 +50,27 @@ type MyReview = {
   sensoryHours: boolean | null;
 };
 
+function isIsoYmdDate(v: unknown): v is string {
+  return typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
+}
+
+function todayLocalYmd() {
+  const d = new Date();
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 export function ReviewForm({ venueId }: { venueId: string }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
 
-  const { data, status } = useSession();
+  const { data: session, status } = useSession();
   const authed = status === "authenticated";
-  const signedInLabel = data?.user?.name || data?.user?.email || "Signed in";
+  const signedInLabel = session?.user?.name || session?.user?.email || "Signed in";
+  const sessionDisplayName =
+    (session?.user?.name || session?.user?.email || "")?.toString().trim();
 
   // Collapsible state
   const [open, setOpen] = React.useState(false);
@@ -66,15 +80,14 @@ export function ReviewForm({ venueId }: { venueId: string }) {
   const [loadingMine, setLoadingMine] = React.useState(false);
 
   const [formError, setFormError] = React.useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = React.useState<FieldErrors | null>(
-    null
-  );
+  const [fieldErrors, setFieldErrors] = React.useState<FieldErrors | null>(null);
 
   const [form, setForm] = React.useState({
     authorName: "",
     rating: "5",
     title: "",
     content: "",
+    // Visit date (YYYY-MM-DD) stored in visitTimeHint
     visitTimeHint: "",
 
     noiseLevel: "" as Level,
@@ -83,6 +96,14 @@ export function ReviewForm({ venueId }: { venueId: string }) {
     quietSpace: false,
     sensoryHours: false,
   });
+
+  // ✅ Auto-fill name from session, but never overwrite what user typed
+  React.useEffect(() => {
+    if (!authed) return;
+    if (!sessionDisplayName) return;
+
+    setForm((p) => (p.authorName && p.authorName.trim().length ? p : { ...p, authorName: sessionDisplayName }));
+  }, [authed, sessionDisplayName]);
 
   // If user signs out while open, close it + reset "myReview"
   React.useEffect(() => {
@@ -108,20 +129,20 @@ export function ReviewForm({ venueId }: { venueId: string }) {
 
     fetch(`/api/venues/${venueId}/reviews`, { method: "GET" })
       .then((r) => r.json())
-      .then((data) => {
+      .then((resp) => {
         if (cancelled) return;
-        const r = data?.review as MyReview | null;
+        const r = resp?.review as MyReview | null;
 
         setMyReview(r ?? null);
 
-        // If they already have a review, prefill form
         if (r) {
+          // Prefill form from existing review
           setForm({
             authorName: r.authorName ?? "",
             rating: String(r.rating ?? 5),
             title: r.title ?? "",
             content: r.content ?? "",
-            visitTimeHint: r.visitTimeHint ?? "",
+            visitTimeHint: isIsoYmdDate(r.visitTimeHint) ? r.visitTimeHint : "",
             noiseLevel: (r.noiseLevel ?? "") as Level,
             lighting: (r.lighting ?? "") as Level,
             crowding: (r.crowding ?? "") as Level,
@@ -129,10 +150,13 @@ export function ReviewForm({ venueId }: { venueId: string }) {
             sensoryHours: Boolean(r.sensoryHours),
           });
         } else {
-          // Otherwise optionally fill name from session (still editable)
-          const name = (data?.user?.name || "")?.trim();
-          if (name) {
-            setForm((p) => (p.authorName ? p : { ...p, authorName: name }));
+          // ✅ If no existing review, ensure name is filled from session (but don't overwrite)
+          if (sessionDisplayName) {
+            setForm((p) =>
+              p.authorName && p.authorName.trim().length
+                ? p
+                : { ...p, authorName: sessionDisplayName }
+            );
           }
         }
       })
@@ -146,7 +170,7 @@ export function ReviewForm({ venueId }: { venueId: string }) {
     return () => {
       cancelled = true;
     };
-  }, [authed, venueId]);
+  }, [authed, venueId, sessionDisplayName]);
 
   function LevelSelect({
     label,
@@ -217,13 +241,13 @@ export function ReviewForm({ venueId }: { venueId: string }) {
         }),
       });
 
-      const data = await res.json().catch(() => null);
+      const resp = await res.json().catch(() => null);
 
       if (!res.ok) {
-        setFormError(data?.error ?? "Something went wrong.");
-        const fe: FieldErrors | null = data?.issues?.fieldErrors ?? null;
+        setFormError(resp?.error ?? "Something went wrong.");
+        const fe: FieldErrors | null = resp?.issues?.fieldErrors ?? null;
         if (fe) setFieldErrors(fe);
-        toast.error(data?.error ?? "Could not save review");
+        toast.error(resp?.error ?? "Could not save review");
         return;
       }
 
@@ -237,6 +261,7 @@ export function ReviewForm({ venueId }: { venueId: string }) {
   }
 
   const isEditing = Boolean(myReview?.id);
+  const maxDate = todayLocalYmd();
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
@@ -284,22 +309,13 @@ export function ReviewForm({ venueId }: { venueId: string }) {
           {/* Right-side button */}
           {authed ? (
             <CollapsibleTrigger asChild>
-              <Button
-                variant={open ? "secondary" : "default"}
-                className="rounded-2xl"
-              >
-                {open
-                  ? "Hide"
-                  : isEditing
-                  ? "Edit your review"
-                  : "Write a review"}
+              <Button variant={open ? "secondary" : "default"} className="rounded-2xl">
+                {open ? "Hide" : isEditing ? "Edit your review" : "Write a review"}
                 {isEditing && !open ? (
                   <Pencil className="ml-2 h-4 w-4" />
                 ) : (
                   <ChevronDown
-                    className={`ml-2 h-4 w-4 transition ${
-                      open ? "rotate-180" : ""
-                    }`}
+                    className={`ml-2 h-4 w-4 transition ${open ? "rotate-180" : ""}`}
                   />
                 )}
               </Button>
@@ -390,16 +406,20 @@ export function ReviewForm({ venueId }: { venueId: string }) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="visit">Visit time (optional)</Label>
+                  <Label htmlFor="visit">Visit date (optional)</Label>
                   <Input
                     id="visit"
+                    type="date"
                     value={form.visitTimeHint}
+                    max={maxDate}
                     onChange={(e) =>
                       setForm((p) => ({ ...p, visitTimeHint: e.target.value }))
                     }
-                    placeholder="e.g. weekday morning"
                     aria-invalid={!!firstErr(fieldErrors, "visitTimeHint")}
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Pick the date you visited (can’t be in the future).
+                  </p>
                   {firstErr(fieldErrors, "visitTimeHint") && (
                     <p className="text-sm text-destructive">
                       {firstErr(fieldErrors, "visitTimeHint")}
@@ -480,7 +500,11 @@ export function ReviewForm({ venueId }: { venueId: string }) {
                   Reviews help other families choose confidently.
                 </p>
 
-                <Button type="submit" disabled={pending || !authed} className="rounded-2xl">
+                <Button
+                  type="submit"
+                  disabled={pending || !authed}
+                  className="rounded-2xl"
+                >
                   {pending ? "Saving..." : isEditing ? "Update review" : "Submit review"}
                 </Button>
               </div>
