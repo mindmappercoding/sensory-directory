@@ -6,7 +6,7 @@ import { venueSubmissionSchema } from "@/lib/validators/venueSubmission";
 export const runtime = "nodejs";
 
 function normPostcode(pc: string) {
-  return pc.trim().toUpperCase().replace(/\s+/g, " ");
+  return pc.toUpperCase().replace(/\s+/g, " ").trim();
 }
 
 async function geocodeUKPostcode(
@@ -15,8 +15,10 @@ async function geocodeUKPostcode(
   const pc = normPostcode(postcode);
   if (!pc) return null;
 
-  const url = `https://api.postcodes.io/postcodes/${encodeURIComponent(pc)}`;
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(
+    `https://api.postcodes.io/postcodes/${encodeURIComponent(pc)}`,
+    { cache: "no-store" }
+  );
   if (!res.ok) return null;
 
   const json = (await res.json()) as {
@@ -30,7 +32,6 @@ async function geocodeUKPostcode(
   return { lat, lng };
 }
 
-// Simple geohash encoder (base32). Good enough for indexing / grouping later.
 const GEOHASH_BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
 
 function geohashEncode(lat: number, lng: number, precision = 9) {
@@ -79,10 +80,12 @@ function geohashEncode(lat: number, lng: number, precision = 9) {
 }
 
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
+
+  const force = new URL(req.url).searchParams.get("force") === "1";
 
   const submission = await prisma.venueSubmission.findUnique({
     where: { id },
@@ -117,7 +120,7 @@ export async function POST(
 
   const input = parsed.data;
 
-  // ✅ normalize images
+  // normalize images
   const coverImageUrl =
     input.coverImageUrl && input.coverImageUrl.trim().length > 0
       ? input.coverImageUrl.trim()
@@ -128,19 +131,32 @@ export async function POST(
     .map((u) => u.trim())
     .slice(0, 10);
 
-  // ✅ geocode venue postcode BEFORE transaction (best-effort)
-  let lat: number | null = null;
-  let lng: number | null = null;
-  let geohash: string | null = null;
+  // Duplicate guard (same postcode)
+  const postcode = normPostcode(input.postcode);
+  const dupes = await prisma.venue.findMany({
+    where: {
+      postcode,
+      OR: [{ archivedAt: null }, { archivedAt: { isSet: false } }],
+    },
+    select: { id: true, name: true, city: true, postcode: true },
+    take: 10,
+  });
 
-  if (input.postcode) {
-    const geo = await geocodeUKPostcode(input.postcode);
-    if (geo) {
-      lat = geo.lat;
-      lng = geo.lng;
-      geohash = geohashEncode(geo.lat, geo.lng, 9);
-    }
+  if (dupes.length > 0 && !force) {
+    return NextResponse.json(
+      {
+        error: "Possible duplicate venue detected (same postcode). Review before approving, or approve with force.",
+        duplicates: dupes,
+      },
+      { status: 409 }
+    );
   }
+
+  // Geo best-effort
+  const geo = await geocodeUKPostcode(postcode).catch(() => null);
+  const lat = geo?.lat ?? null;
+  const lng = geo?.lng ?? null;
+  const geohash = lat !== null && lng !== null ? geohashEncode(lat, lng, 9) : null;
 
   const venue = await prisma.$transaction(async (tx) => {
     const created = await tx.venue.create({
@@ -154,18 +170,20 @@ export async function POST(
         address1: input.address1 ?? null,
         address2: input.address2 ?? null,
         city: input.city ?? null,
-        postcode: input.postcode ?? null,
+        postcode,
         county: input.county ?? null,
+        country: "UK",
 
-        tags: input.tags,
+        tags: input.tags.map((t) => t.toLowerCase()),
 
         coverImageUrl,
         imageUrls,
 
-        // ✅ coords + geohash (your model already has these)
         lat,
         lng,
         geohash,
+
+        verifiedAt: new Date(),
 
         sensory: input.sensory
           ? {

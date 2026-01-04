@@ -7,40 +7,66 @@ import { toast } from "sonner";
 export function SubmissionActionButton({
   id,
   action,
+  force,
 }: {
   id: string;
   action: "approve" | "reject";
+  force?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  async function handleClick() {
+  async function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
+    // ✅ Critical: stop this button from submitting the parent <form>
+    e.preventDefault();
+    e.stopPropagation();
+
+    let reason = "";
+
     if (action === "reject") {
-      const ok = window.confirm(
-        "Reject this submission? This will mark it as REJECTED."
-      );
+      const ok = window.confirm("Reject this submission?");
       if (!ok) return;
+
+      reason =
+        window.prompt("Optional reject reason (saved for admin reference):") ??
+        "";
+      reason = reason.trim().slice(0, 600);
     }
 
     if (action === "approve") {
       const ok = window.confirm(
-        "Approve this submission? This will create a Venue and make it live."
+        force
+          ? "Approve anyway? (A venue with the same postcode may already exist.)"
+          : "Approve this submission? This will create a Venue and make it live."
       );
       if (!ok) return;
     }
 
     startTransition(async () => {
       try {
-        const res = await fetch(`/api/admin/submissions/${id}/${action}`, {
+        const url =
+          action === "approve" && force
+            ? `/api/admin/submissions/${id}/approve?force=1`
+            : `/api/admin/submissions/${id}/${action}`;
+
+        const res = await fetch(url, {
           method: "POST",
+          headers:
+            action === "reject" ? { "Content-Type": "application/json" } : undefined,
+          body: action === "reject" ? JSON.stringify({ reason }) : undefined,
         });
 
         const json = await res.json().catch(() => null);
 
+        if (res.status === 409) {
+          toast.error(json?.error ?? "Possible duplicate venue detected.", {
+            description: "Review it first or use Approve anyway.",
+          });
+          return;
+        }
+
         if (!res.ok) {
-          toast.error(
-            json?.error ? String(json.error) : `Failed to ${action} submission`
-          );
+          toast.error(json?.error ? String(json.error) : `Failed to ${action}`);
           return;
         }
 
@@ -50,13 +76,15 @@ export function SubmissionActionButton({
             description:
               action === "approve"
                 ? "Venue is now live."
+                : reason
+                ? `Reason saved: ${reason}`
                 : "The submission has been rejected.",
           }
         );
 
         router.refresh();
-      } catch (e: any) {
-        toast.error(e?.message ?? `Failed to ${action} submission`);
+      } catch (err: any) {
+        toast.error(err?.message ?? `Failed to ${action}`);
       }
     });
   }
@@ -65,6 +93,7 @@ export function SubmissionActionButton({
 
   return (
     <button
+      type="button" // ✅ Critical
       onClick={handleClick}
       disabled={pending}
       className={[
@@ -74,7 +103,7 @@ export function SubmissionActionButton({
           : "border-emerald-200 hover:bg-emerald-50",
       ].join(" ")}
     >
-      {pending ? "Working..." : isReject ? "Reject" : "Approve"}
+      {pending ? "Working..." : isReject ? "Reject" : force ? "Approve anyway" : "Approve"}
     </button>
   );
 }

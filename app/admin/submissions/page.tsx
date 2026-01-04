@@ -2,6 +2,8 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { SubmissionActionButton } from "./SubmissionActionButton";
+import { BackfillGeoButton } from "./BackfillGeoButton";
+
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -108,9 +110,12 @@ export default async function AdminSubmissionsPage({
           </p>
         </div>
 
-        <Link href="/admin" className="text-sm underline">
-          Back to dashboard
-        </Link>
+        <div className="flex items-center gap-3">
+          <BackfillGeoButton />
+          <Link href="/admin" className="text-sm underline">
+            Back to dashboard
+          </Link>
+        </div>
       </div>
 
       {/* Status tabs */}
@@ -197,16 +202,25 @@ export default async function AdminSubmissionsPage({
                   </div>
 
                   {/* Actions */}
-                  {isPending ? (
-                    <div className="flex gap-2 shrink-0">
-                      <SubmissionActionButton id={s.id} action="approve" />
-                      <SubmissionActionButton id={s.id} action="reject" />
-                    </div>
-                  ) : (
-                    <div className="text-sm text-muted-foreground shrink-0">
-                      {s.status === "APPROVED" ? "Approved" : "Rejected"}
-                    </div>
-                  )}
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <Link
+                      href={`/admin/submissions/${s.id}`}
+                      className="rounded-lg border px-3 py-1 text-sm hover:bg-muted"
+                    >
+                      Review
+                    </Link>
+
+                    {isPending ? (
+                      <>
+                        <SubmissionActionButton id={s.id} action="approve" />
+                        <SubmissionActionButton id={s.id} action="reject" />
+                      </>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">
+                        {s.status === "APPROVED" ? "Approved" : "Rejected"}
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {/* Full payload */}
@@ -364,7 +378,6 @@ export default async function AdminSubmissionsPage({
                       </div>
                     </div>
 
-                    {/* Raw payload */}
                     <details className="rounded-2xl border p-4">
                       <summary className="cursor-pointer text-sm font-semibold">
                         Raw submission payload (debug)
