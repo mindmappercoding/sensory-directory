@@ -11,20 +11,33 @@ import {
 } from "@/components/ui/breadcrumb";
 
 const LABELS: Record<string, string> = {
-  admin: "Dashboard",     // 👈 this is the key bit
+  admin: "Dashboard",
   venues: "Venues",
   submissions: "Submissions",
+  users: "Users",
   reports: "Reports",
 };
 
+function isObjectId(seg: string) {
+  return /^[a-f0-9]{24}$/i.test(seg);
+}
+
 function buildCrumbs(pathname: string) {
-  const segments = pathname.split("/").filter(Boolean); // ["admin", "venues", ...]
+  const segments = pathname.split("/").filter(Boolean);
   const crumbs: { href: string; label: string }[] = [];
 
   let href = "";
-  for (const segment of segments) {
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
     href += `/${segment}`;
-    const label = LABELS[segment] ?? segment.charAt(0).toUpperCase() + segment.slice(1);
+
+    const prev = segments[i - 1];
+    let label =
+      LABELS[segment] ?? segment.charAt(0).toUpperCase() + segment.slice(1);
+
+    // ✅ nicer labels for dynamic ids
+    if (isObjectId(segment) && prev === "users") label = "Details";
+
     crumbs.push({ href, label });
   }
 
@@ -34,7 +47,6 @@ function buildCrumbs(pathname: string) {
 export function AdminBreadcrumbs() {
   const pathname = usePathname();
   const crumbs = buildCrumbs(pathname);
-
   if (crumbs.length === 0) return null;
 
   return (

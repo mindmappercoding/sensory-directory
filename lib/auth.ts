@@ -12,11 +12,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
     }),
   ],
+  events: {
+    async signIn({ user }) {
+      // ✅ Track last login (requires lastLoginAt field)
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { lastLoginAt: new Date() },
+      });
+    },
+  },
   callbacks: {
-    // Make user id available (useful for reviews)
+    // Make user id available (useful for reviews) + add role for admin UI
     session({ session, user }) {
-      
-      session.user.id = user.id;
+      (session.user as any).id = user.id;
+      (session.user as any).role = (user as any).role;
       return session;
     },
   },

@@ -18,6 +18,15 @@ function zodIssuesToFieldErrors(issues: z.ZodIssue[]): FieldErrors {
   return out;
 }
 
+function pickAuthorName(inputName: unknown, sessionName?: string | null, sessionEmail?: string | null) {
+  const typed =
+    typeof inputName === "string" && inputName.trim().length > 0
+      ? inputName.trim()
+      : null;
+
+  return typed ?? sessionName ?? sessionEmail ?? null;
+}
+
 // ✅ GET: return *my* review for this venue (or null)
 export async function GET(
   _req: Request,
@@ -26,7 +35,7 @@ export async function GET(
   const { id } = await params;
 
   const session = await auth();
-  const userId = session?.user?.id;
+  const userId = (session?.user as any)?.id as string | undefined;
 
   if (!userId) return NextResponse.json({ review: null });
 
@@ -59,7 +68,7 @@ export async function POST(
   const { id } = await params;
 
   const session = await auth();
-  const userId = session?.user?.id;
+  const userId = (session?.user as any)?.id as string | undefined;
 
   if (!userId) {
     return NextResponse.json(
@@ -106,7 +115,9 @@ export async function POST(
         data: {
           venueId: venue.id,
           authorId: userId,
-          authorName: session?.user?.name ?? session?.user?.email ?? null,
+
+          // ✅ allow overwrite; else default to Google name/email
+          authorName: pickAuthorName(input.authorName, session?.user?.name ?? null, session?.user?.email ?? null),
 
           rating: input.rating,
           title: input.title || null,
@@ -119,7 +130,6 @@ export async function POST(
           quietSpace: typeof input.quietSpace === "boolean" ? input.quietSpace : null,
           sensoryHours: typeof input.sensoryHours === "boolean" ? input.sensoryHours : null,
 
-          // keep visible by default
           hiddenAt: null,
         },
         select: {
@@ -138,15 +148,12 @@ export async function POST(
         },
       });
 
-      // ✅ THIS is what updates Mongo Venue.avgRating / visibleReviewCount / hiddenReviewCount etc
       const stats = await recomputeVenueReviewStats(tx as any, venue.id);
-
       return { review, stats };
     });
 
     return NextResponse.json({ ok: true, ...result });
   } catch (e: any) {
-    // Unique constraint: already reviewed this venue
     if (e?.code === "P2002") {
       return NextResponse.json(
         { error: "You’ve already reviewed this venue." },
@@ -168,7 +175,7 @@ export async function PATCH(
   const { id } = await params;
 
   const session = await auth();
-  const userId = session?.user?.id;
+  const userId = (session?.user as any)?.id as string | undefined;
 
   if (!userId) {
     return NextResponse.json(
@@ -211,11 +218,11 @@ export async function PATCH(
     const result = await prisma.$transaction(async (tx) => {
       const review = await tx.review.update({
         where: {
-          // requires @@unique([venueId, authorId])
           venueId_authorId: { venueId: venue.id, authorId: userId },
         },
         data: {
-          authorName: session?.user?.name ?? session?.user?.email ?? input.authorName ?? null,
+          // ✅ allow overwrite; else default to Google name/email
+          authorName: pickAuthorName(input.authorName, session?.user?.name ?? null, session?.user?.email ?? null),
 
           rating: input.rating,
           title: input.title || null,
@@ -250,7 +257,6 @@ export async function PATCH(
 
     return NextResponse.json({ ok: true, ...result });
   } catch (e: any) {
-    // Prisma update "record not found"
     if (e?.code === "P2025") {
       return NextResponse.json(
         { error: "No existing review to edit yet." },

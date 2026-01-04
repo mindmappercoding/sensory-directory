@@ -1,28 +1,26 @@
 // app/admin/page.tsx
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { AdminBreadcrumbs } from "./AdminBreadcrumbs";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function AdminDashboardPage() {
-  const [venueCount, verifiedVenueCount, archivedVenueCount, pendingSubmissions, openReports] =
-    await Promise.all([
-      prisma.venue.count(),
-      prisma.venue.count({
-        where: { verifiedAt: { not: null } },
-      }),
-      prisma.venue.count({
-        where: { archivedAt: { not: null } },
-      }),
-      prisma.venueSubmission.count({
-        where: { status: "PENDING" },
-      }),
-      prisma.reviewReport.count({
-        where: { status: "OPEN" },
-      }),
-    ]);
+  const [
+    venueCount,
+    verifiedVenueCount,
+    archivedVenueCount,
+    pendingSubmissions,
+    openReports,
+    userCount,
+  ] = await Promise.all([
+    prisma.venue.count(),
+    prisma.venue.count({ where: { verifiedAt: { not: null } } }),
+    prisma.venue.count({ where: { archivedAt: { not: null } } }),
+    prisma.venueSubmission.count({ where: { status: "PENDING" } }),
+    prisma.reviewReport.count({ where: { status: "OPEN" } }),
+    prisma.user.count(),
+  ]);
 
   const unverifiedVenueCount = venueCount - verifiedVenueCount;
 
@@ -31,12 +29,12 @@ export default async function AdminDashboardPage() {
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold">Admin dashboard</h1>
         <p className="text-sm text-muted-foreground">
-          Quick overview of venues, submissions, and review reports.
+          Quick overview of venues, submissions, users, and review reports.
         </p>
       </header>
 
       {/* Overview stats */}
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-2xl border bg-card p-4 space-y-1">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Venues
@@ -60,6 +58,16 @@ export default async function AdminDashboardPage() {
 
         <div className="rounded-2xl border bg-card p-4 space-y-1">
           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            Users
+          </p>
+          <p className="text-2xl font-semibold">{userCount}</p>
+          <p className="text-xs text-muted-foreground">
+            People who have signed in.
+          </p>
+        </div>
+
+        <div className="rounded-2xl border bg-card p-4 space-y-1">
+          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
             Open review reports
           </p>
           <p className="text-2xl font-semibold">{openReports}</p>
@@ -70,7 +78,7 @@ export default async function AdminDashboardPage() {
       </section>
 
       {/* Navigation cards */}
-      <section className="grid gap-4 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Link
           href="/admin/venues"
           className="rounded-2xl border bg-card p-4 hover:bg-accent/40 transition-colors"
@@ -90,7 +98,20 @@ export default async function AdminDashboardPage() {
           <p className="text-xs text-muted-foreground mb-3">
             Approve or reject new venues and suggested edits.
           </p>
-          <span className="text-xs font-medium underline">Go to submissions →</span>
+          <span className="text-xs font-medium underline">
+            Go to submissions →
+          </span>
+        </Link>
+
+        <Link
+          href="/admin/users"
+          className="rounded-2xl border bg-card p-4 hover:bg-accent/40 transition-colors"
+        >
+          <h2 className="text-sm font-semibold mb-1">Users</h2>
+          <p className="text-xs text-muted-foreground mb-3">
+            View signed-in users and manage admin access.
+          </p>
+          <span className="text-xs font-medium underline">Go to users →</span>
         </Link>
 
         <Link

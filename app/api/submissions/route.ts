@@ -3,12 +3,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { venueSubmissionSchema } from "@/lib/validators/venueSubmission";
+import { auth } from "@/lib/auth";
 
 const SubmissionSchema = z.object({
   type: z.enum(["NEW_VENUE", "EDIT_VENUE"]).default("NEW_VENUE"),
   venueId: z.string().optional(),
   proposedName: z.string().min(2).max(120).optional(),
-  submittedBy: z.string().optional(),
+  submittedBy: z.string().optional(), // legacy (we derive from session when possible)
   payload: z.unknown(),
 });
 
@@ -70,6 +71,19 @@ export async function POST(req: Request) {
       );
     }
 
+    // ✅ pull signed-in user (if available)
+    const session = await auth().catch(() => null);
+    const userId = (session?.user as any)?.id as string | undefined;
+
+    const sessionLabelRaw = session?.user?.name ?? session?.user?.email ?? "";
+    const sessionLabel = sessionLabelRaw.trim().length ? sessionLabelRaw.trim() : undefined;
+
+    const submittedByLabel =
+      sessionLabel ??
+      (typeof submittedBy === "string" && submittedBy.trim().length
+        ? submittedBy.trim()
+        : undefined);
+
     // Validate payload (merge proposedName into payload to keep one schema)
     const payloadParsed = venueSubmissionSchema.safeParse({
       ...(payload as any),
@@ -94,7 +108,11 @@ export async function POST(req: Request) {
         type,
         venueId,
         proposedName: payloadParsed.data.proposedName,
-        submittedBy,
+
+        // ✅ link to user (optional if signed out)
+        submittedBy: submittedByLabel,
+        submittedByUserId: userId,
+
         payload: payloadParsed.data,
         status: "PENDING",
       },
