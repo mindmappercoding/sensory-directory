@@ -7,6 +7,21 @@ import { Button } from "@/components/ui/button";
 
 type Props = {
   onChange: (next: { coverImageUrl?: string; imageUrls: string[] }) => void;
+  /**
+   * manual   = shows Upload button (default, backwards compatible)
+   * deferred = hides Upload button; parent triggers upload via ref (submit button)
+   */
+  mode?: "manual" | "deferred";
+  disabled?: boolean;
+  maxImages?: number;
+};
+
+export type ImageUploaderHandle = {
+  upload: () => Promise<{ coverImageUrl?: string; imageUrls: string[] } | null>;
+  hasQueuedFiles: () => boolean;
+  clearSelection: () => void;
+  openCoverPicker: () => void;
+  openGalleryPicker: () => void;
 };
 
 function uniqFiles(files: File[]) {
@@ -17,92 +32,82 @@ function uniqFiles(files: File[]) {
   );
 }
 
-export default function ImageUploader({ onChange }: Props) {
-  const [cover, setCover] = useState<File | null>(null);
-  const [images, setImages] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
-  const [coverPreview, setCoverPreview] = useState<string | null>(null);
-  const [isUploading, setIsUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+const ImageUploader = React.forwardRef<ImageUploaderHandle, Props>(
+  function ImageUploader(
+    { onChange, mode = "manual", disabled = false, maxImages = 10 }: Props,
+    ref
+  ) {
+    const [cover, setCover] = useState<File | null>(null);
+    const [images, setImages] = useState<File[]>([]);
+    const [previews, setPreviews] = useState<string[]>([]);
+    const [coverPreview, setCoverPreview] = useState<string | null>(null);
+    const [isUploading, setIsUploading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
 
-  const coverInputRef = useRef<HTMLInputElement | null>(null);
-  const galleryInputRef = useRef<HTMLInputElement | null>(null);
+    const coverInputRef = useRef<HTMLInputElement | null>(null);
+    const galleryInputRef = useRef<HTMLInputElement | null>(null);
 
-  // ✅ prevent memory leaks from object URLs
-  React.useEffect(() => {
-    return () => {
+    const canInteract = !disabled && !isUploading;
+
+    // ✅ prevent memory leaks from object URLs
+    React.useEffect(() => {
+      return () => {
+        if (coverPreview) URL.revokeObjectURL(coverPreview);
+        previews.forEach((p) => URL.revokeObjectURL(p));
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    function openCoverPicker() {
+      if (!canInteract) return;
+      coverInputRef.current?.click();
+    }
+
+    function openGalleryPicker() {
+      if (!canInteract) return;
+      galleryInputRef.current?.click();
+    }
+
+    function setCoverFile(file: File | null) {
+      setError(null);
+
+      // revoke old cover preview
       if (coverPreview) URL.revokeObjectURL(coverPreview);
-      previews.forEach((p) => URL.revokeObjectURL(p));
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
-  function setCoverFile(file: File | null) {
-    setError(null);
-
-    // revoke old cover preview
-    if (coverPreview) URL.revokeObjectURL(coverPreview);
-
-    setCover(file);
-    if (!file) {
-      setCoverPreview(null);
-      return;
-    }
-    setCoverPreview(URL.createObjectURL(file));
-  }
-
-  function addGalleryFiles(files: File[]) {
-    setError(null);
-
-    setImages((prev) => {
-      const merged = uniqFiles([...prev, ...files]).slice(0, 10);
-
-      // revoke old previews
-      previews.forEach((p) => URL.revokeObjectURL(p));
-
-      setPreviews(merged.map((f) => URL.createObjectURL(f)));
-      return merged;
-    });
-
-    if (galleryInputRef.current) galleryInputRef.current.value = "";
-  }
-
-  function clearGallery() {
-    previews.forEach((p) => URL.revokeObjectURL(p));
-    setImages([]);
-    setPreviews([]);
-    if (galleryInputRef.current) galleryInputRef.current.value = "";
-  }
-
-  async function upload() {
-    setError(null);
-
-    // nothing selected
-    if (!cover && images.length === 0) {
-      setError("Please select a cover and/or gallery images first.");
-      return;
-    }
-
-    setIsUploading(true);
-
-    try {
-      const form = new FormData();
-      if (cover) form.append("cover", cover);
-      images.forEach((f) => form.append("images", f));
-
-      const res = await fetch("/api/uploads", { method: "POST", body: form });
-      const json = await res.json().catch(() => ({}));
-
-      if (!res.ok || !json?.ok) {
-        throw new Error(json?.error ?? "Upload failed.");
+      setCover(file);
+      if (!file) {
+        setCoverPreview(null);
+        return;
       }
+      setCoverPreview(URL.createObjectURL(file));
+    }
 
-      onChange({
-        coverImageUrl: json.coverUrl ?? undefined,
-        imageUrls: json.imageUrls ?? [],
+    function addGalleryFiles(files: File[]) {
+      setError(null);
+
+      setImages((prev) => {
+        const merged = uniqFiles([...prev, ...files]).slice(0, maxImages);
+
+        // revoke old previews
+        previews.forEach((p) => URL.revokeObjectURL(p));
+
+        setPreviews(merged.map((f) => URL.createObjectURL(f)));
+        return merged;
       });
 
-      // ✅ clear local selection after successful upload
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
+    }
+
+    function clearGallery() {
+      previews.forEach((p) => URL.revokeObjectURL(p));
+      setImages([]);
+      setPreviews([]);
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
+    }
+
+    function clearSelection() {
+      setError(null);
+
       if (coverPreview) URL.revokeObjectURL(coverPreview);
       previews.forEach((p) => URL.revokeObjectURL(p));
 
@@ -110,152 +115,213 @@ export default function ImageUploader({ onChange }: Props) {
       setCoverPreview(null);
       setImages([]);
       setPreviews([]);
+
       if (coverInputRef.current) coverInputRef.current.value = "";
       if (galleryInputRef.current) galleryInputRef.current.value = "";
-    } catch (e: any) {
-      setError(e?.message ?? "Upload failed.");
-    } finally {
-      setIsUploading(false);
     }
-  }
 
-  const queuedCover = cover ? 1 : 0;
-  const queuedGallery = images.length;
-  const queuedTotal = queuedCover + queuedGallery;
+    async function upload(): Promise<{ coverImageUrl?: string; imageUrls: string[] } | null> {
+      setError(null);
 
-  return (
-    <div className="rounded-2xl border bg-card p-4 space-y-4">
-      {/* COVER */}
-      <div className="space-y-2">
-        <div className="text-sm font-medium">Cover image (optional)</div>
+      // nothing selected
+      if (!cover && images.length === 0) {
+        setError("Please select a cover and/or gallery images first.");
+        return null;
+      }
 
-        {/* Hidden input */}
-        <input
-          ref={coverInputRef}
-          type="file"
-          accept="image/*"
-          onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
-          className="hidden"
-        />
+      setIsUploading(true);
 
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => coverInputRef.current?.click()}
-            disabled={isUploading}
-          >
-            Choose cover image
-          </Button>
+      try {
+        const form = new FormData();
+        if (cover) form.append("cover", cover);
+        images.forEach((f) => form.append("images", f));
 
-          <div className="text-xs text-muted-foreground">
-            {cover ? cover.name : "No cover selected"}
-          </div>
+        const res = await fetch("/api/uploads", { method: "POST", body: form });
+        const json = await res.json().catch(() => ({}));
 
-          {cover && (
+        if (!res.ok || !json?.ok) {
+          throw new Error(json?.error ?? "Upload failed.");
+        }
+
+        const result = {
+          coverImageUrl: json.coverUrl ?? undefined,
+          imageUrls: json.imageUrls ?? [],
+        };
+
+        onChange(result);
+
+        // ✅ clear local selection after successful upload
+        clearSelection();
+
+        return result;
+      } catch (e: any) {
+        setError(e?.message ?? "Upload failed.");
+        return null;
+      } finally {
+        setIsUploading(false);
+      }
+    }
+
+    React.useImperativeHandle(
+      ref,
+      () => ({
+        upload,
+        hasQueuedFiles: () => !!cover || images.length > 0,
+        clearSelection,
+        openCoverPicker,
+        openGalleryPicker,
+      }),
+      [cover, images, coverPreview, previews, canInteract]
+    );
+
+    const queuedCover = cover ? 1 : 0;
+    const queuedGallery = images.length;
+    const queuedTotal = queuedCover + queuedGallery;
+
+    return (
+      <div className="rounded-2xl border bg-card p-4 space-y-4">
+        {/* COVER */}
+        <div className="space-y-2">
+          <div className="text-sm font-medium">Cover image (optional)</div>
+
+          {/* Hidden input */}
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/*"
+            onChange={(e) => setCoverFile(e.target.files?.[0] ?? null)}
+            className="hidden"
+            disabled={!canInteract}
+          />
+
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               type="button"
-              variant="ghost"
-              className="h-8 px-2 text-xs"
-              onClick={() => setCoverFile(null)}
-              disabled={isUploading}
+              variant="outline"
+              onClick={openCoverPicker}
+              disabled={!canInteract}
             >
-              Remove
+              Choose cover image
             </Button>
-          )}
-        </div>
 
-        {coverPreview && (
-          <div className="relative h-40 w-full overflow-hidden rounded-xl border">
-            <Image
-              src={coverPreview}
-              alt="Cover preview"
-              fill
-              className="object-cover"
-            />
-          </div>
-        )}
-      </div>
+            <div className="text-xs text-muted-foreground">
+              {cover ? cover.name : "No cover selected"}
+            </div>
 
-      {/* GALLERY */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <div className="text-sm font-medium">
-            Gallery images (up to 10)
-            {queuedGallery > 0 ? ` • ${queuedGallery} selected` : ""}
-          </div>
-
-          {queuedGallery > 0 && (
-            <Button
-              type="button"
-              variant="ghost"
-              className="h-8 px-2 text-xs"
-              onClick={clearGallery}
-              disabled={isUploading}
-            >
-              Clear
-            </Button>
-          )}
-        </div>
-
-        {/* Hidden input */}
-        <input
-          ref={galleryInputRef}
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={(e) => addGalleryFiles(Array.from(e.target.files ?? []))}
-          className="hidden"
-        />
-
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => galleryInputRef.current?.click()}
-            disabled={isUploading || queuedGallery >= 10}
-          >
-            {queuedGallery > 0 ? "Add more images" : "Choose gallery images"}
-          </Button>
-
-          <div className="text-xs text-muted-foreground">
-            {queuedGallery === 0
-              ? "No gallery images selected"
-              : `${queuedGallery} selected`}
-          </div>
-        </div>
-
-        {previews.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {previews.map((src) => (
-              <div
-                key={src}
-                className="relative h-24 overflow-hidden rounded-xl border"
+            {cover && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-8 px-2 text-xs"
+                onClick={() => setCoverFile(null)}
+                disabled={!canInteract}
               >
-                <Image src={src} alt="Preview" fill className="object-cover" />
-              </div>
-            ))}
+                Remove
+              </Button>
+            )}
+          </div>
+
+          {coverPreview && (
+            <div className="relative h-40 w-full overflow-hidden rounded-xl border">
+              <Image
+                src={coverPreview}
+                alt="Cover preview"
+                fill
+                className="object-cover"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* GALLERY */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <div className="text-sm font-medium">
+              Gallery images (up to {maxImages})
+              {queuedGallery > 0 ? ` • ${queuedGallery} selected` : ""}
+            </div>
+
+            {queuedGallery > 0 && (
+              <Button
+                type="button"
+                variant="ghost"
+                className="h-8 px-2 text-xs"
+                onClick={clearGallery}
+                disabled={!canInteract}
+              >
+                Clear
+              </Button>
+            )}
+          </div>
+
+          {/* Hidden input */}
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => addGalleryFiles(Array.from(e.target.files ?? []))}
+            className="hidden"
+            disabled={!canInteract}
+          />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={openGalleryPicker}
+              disabled={!canInteract || queuedGallery >= maxImages}
+            >
+              {queuedGallery > 0 ? "Add more images" : "Choose gallery images"}
+            </Button>
+
+            <div className="text-xs text-muted-foreground">
+              {queuedGallery === 0
+                ? "No gallery images selected"
+                : `${queuedGallery} selected`}
+            </div>
+          </div>
+
+          {previews.length > 0 && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {previews.map((src) => (
+                <div
+                  key={src}
+                  className="relative h-24 overflow-hidden rounded-xl border"
+                >
+                  <Image src={src} alt="Preview" fill className="object-cover" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="text-xs text-muted-foreground">
+            Ready to upload:{" "}
+            {queuedTotal === 0
+              ? "nothing selected"
+              : `${queuedCover ? "1 cover" : "0 cover"} + ${queuedGallery} gallery`}
+          </div>
+        </div>
+
+        {error && <div className="text-sm text-red-600">{error}</div>}
+
+        {mode === "manual" ? (
+          <Button type="button" onClick={upload} disabled={!canInteract}>
+            {isUploading ? "Uploading…" : "Upload images"}
+          </Button>
+        ) : (
+          <div className="text-xs text-muted-foreground">
+            Photos will upload when you submit the form.
           </div>
         )}
 
         <div className="text-xs text-muted-foreground">
-          Ready to upload:{" "}
-          {queuedTotal === 0
-            ? "nothing selected"
-            : `${queuedCover ? "1 cover" : "0 cover"} + ${queuedGallery} gallery`}
+          After upload, image URLs are returned — your form must include them in
+          the submit payload.
         </div>
       </div>
+    );
+  }
+);
 
-      {error && <div className="text-sm text-red-600">{error}</div>}
-
-      <Button type="button" onClick={upload} disabled={isUploading}>
-        {isUploading ? "Uploading…" : "Upload images"}
-      </Button>
-
-      <div className="text-xs text-muted-foreground">
-        After upload, image URLs are returned — your form must include them in
-        the submit payload.
-      </div>
-    </div>
-  );
-}
+export default ImageUploader;

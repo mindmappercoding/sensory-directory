@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import ImageUploader from "./imageUploader";
+import ImageUploader, { type ImageUploaderHandle } from "./imageUploader";
 
 const AVAILABLE_TAGS = [
   "softplay",
@@ -69,6 +69,9 @@ function digitsOnly(input: unknown) {
 export default function SubmitVenueForm() {
   const [isPending, startTransition] = useTransition();
   const [serverError, setServerError] = useState<string | null>(null);
+  const [uploadingImages, setUploadingImages] = useState(false);
+
+  const uploaderRef = useRef<ImageUploaderHandle | null>(null);
 
   const form = useForm<VenueSubmissionInput>({
     resolver: zodResolver(venueSubmissionSchema),
@@ -118,6 +121,7 @@ export default function SubmitVenueForm() {
     watch,
     getValues,
     formState: { errors },
+    reset,
   } = form;
 
   const selectedTags = watch("tags") ?? [];
@@ -137,13 +141,15 @@ export default function SubmitVenueForm() {
     setServerError(null);
 
     // Pull latest image fields
-    const coverImageUrl = getValues("coverImageUrl") ?? "";
-    const imageUrls = getValues("imageUrls") ?? [];
+    const coverImageUrl = (getValues("coverImageUrl") ?? "").trim();
+    const imageUrls = (getValues("imageUrls") ?? []).map((u) => u.trim()).filter(Boolean);
 
     const payload: VenueSubmissionInput = {
       ...values,
       coverImageUrl,
       imageUrls,
+      postcode: normalizePostcode(values.postcode) as any,
+      phone: digitsOnly(values.phone) as any,
     };
 
     startTransition(async () => {
@@ -172,7 +178,8 @@ export default function SubmitVenueForm() {
           description: "Thanks — we’ll review it before it goes live.",
         });
 
-        form.reset();
+        uploaderRef.current?.clearSelection();
+        reset();
       } catch (e: any) {
         const msg = e?.message ?? "Server error";
         setServerError(msg);
@@ -181,21 +188,76 @@ export default function SubmitVenueForm() {
     });
   }
 
+  /**
+   * ✅ One button flow:
+   * 1) If files are selected but not uploaded -> upload them
+   * 2) If still missing required images -> prompt user to upload (opens picker)
+   * 3) Then run RHF validation + submit
+   */
+  async function handleFullSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    setServerError(null);
+
+    const ref = uploaderRef.current;
+
+    // 1) If user has queued files, upload them before validation/submission
+    if (ref?.hasQueuedFiles()) {
+      setUploadingImages(true);
+      const t = toast.loading("Uploading photos…");
+      try {
+        const out = await ref.upload();
+        if (!out) {
+          toast.error("Upload failed. Please try again.");
+          return;
+        }
+
+        toast.success("Images uploaded", {
+          description: "They’ll be included in your submission.",
+        });
+      } finally {
+        setUploadingImages(false);
+        toast.dismiss(t);
+      }
+    }
+
+    // 2) Ensure required image URLs exist before attempting submit (matches your UI)
+    const coverUrl = (getValues("coverImageUrl") ?? "").trim();
+    const galleryUrls = (getValues("imageUrls") ?? []).filter(Boolean);
+
+    if (!coverUrl || galleryUrls.length === 0) {
+      toast.error("Please upload photos before submitting.", {
+        description: "Add a cover photo and at least 1 gallery image.",
+      });
+
+      // open pickers to guide them
+      ref?.openCoverPicker();
+      return;
+    }
+
+    // 3) Validate + submit
+    return handleSubmit(onSubmit)();
+  }
+
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleFullSubmit} className="space-y-6">
       {/* IMAGES */}
       <div className="rounded-3xl border bg-card p-5">
         <div className="flex items-start justify-between gap-3">
           <div>
             <div className="text-sm font-semibold">Photos *</div>
             <div className="text-xs text-muted-foreground">
-              Upload a cover photo and at least 1 gallery image.
+              Choose photos now — they upload when you submit.
             </div>
           </div>
         </div>
 
         <div className="mt-4">
           <ImageUploader
+            ref={uploaderRef}
+            mode="deferred"
+            disabled={isPending || uploadingImages}
             onChange={(next) => {
               const prevCover = getValues("coverImageUrl") ?? "";
               const prevGallery = getValues("imageUrls") ?? [];
@@ -216,10 +278,6 @@ export default function SubmitVenueForm() {
               setValue("imageUrls", merged, {
                 shouldDirty: true,
                 shouldValidate: true,
-              });
-
-              toast.success("Images uploaded", {
-                description: "They’ll be included in your submission.",
               });
             }}
           />
@@ -602,8 +660,8 @@ export default function SubmitVenueForm() {
         </div>
       )}
 
-      <Button type="submit" disabled={isPending} className="w-full">
-        {isPending ? "Submitting…" : "Submit venue"}
+      <Button type="submit" disabled={isPending || uploadingImages} className="w-full">
+        {uploadingImages ? "Uploading photos…" : isPending ? "Submitting…" : "Submit venue"}
       </Button>
     </form>
   );

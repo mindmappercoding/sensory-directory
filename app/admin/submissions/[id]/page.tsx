@@ -11,8 +11,21 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null;
 }
 
-function normPostcode(pc: string) {
-  return pc.toUpperCase().replace(/\s+/g, " ").trim();
+/**
+ * Normalise to standard UK format:
+ * - uppercase
+ * - remove spaces
+ * - insert a single space before last 3 chars
+ *   e.g. "ls211aa" -> "LS21 1AA"
+ */
+function formatUKPostcode(input: string) {
+  const raw = input.toUpperCase().replace(/\s+/g, "").trim();
+  if (raw.length <= 3) return raw;
+  return `${raw.slice(0, -3)} ${raw.slice(-3)}`.trim();
+}
+
+function compactUKPostcode(input: string) {
+  return input.toUpperCase().replace(/\s+/g, "").trim();
 }
 
 export default async function AdminSubmissionDetailPage({
@@ -40,26 +53,39 @@ export default async function AdminSubmissionDetailPage({
   if (!submission) return notFound();
 
   const payload = isObject(submission.payload) ? submission.payload : {};
-  const postcodeRaw = typeof payload.postcode === "string" ? payload.postcode : "";
-  const postcode = postcodeRaw ? normPostcode(postcodeRaw) : "";
 
-  const duplicates =
-    postcode.length > 0
-      ? await prisma.venue.findMany({
-          where: {
-            postcode,
-            OR: [{ archivedAt: null }, { archivedAt: { isSet: false } }],
-          },
-          select: {
-            id: true,
-            name: true,
-            city: true,
-            postcode: true,
-            createdAt: true,
-          },
-          take: 10,
-        })
-      : [];
+  const postcodeRaw = typeof payload.postcode === "string" ? payload.postcode : "";
+  const postcodeFormatted = postcodeRaw ? formatUKPostcode(postcodeRaw) : "";
+  const postcodeCompact = postcodeRaw ? compactUKPostcode(postcodeRaw) : "";
+
+  /**
+   * ✅ IMPORTANT:
+   * Only show "possible duplicates" for NEW_VENUE submissions.
+   * For EDIT_VENUE, the venue being edited will naturally share the same postcode,
+   * which causes a false positive “duplicate” every time.
+   */
+  const shouldCheckDuplicates =
+    submission.type === "NEW_VENUE" &&
+    submission.status === "PENDING" &&
+    postcodeCompact.length > 0;
+
+  const duplicates = shouldCheckDuplicates
+    ? await prisma.venue.findMany({
+        where: {
+          // Support older venues that might have postcode stored without a space
+          postcode: { in: [postcodeFormatted, postcodeCompact] },
+          OR: [{ archivedAt: null }, { archivedAt: { isSet: false } }],
+        },
+        select: {
+          id: true,
+          name: true,
+          city: true,
+          postcode: true,
+          createdAt: true,
+        },
+        take: 10,
+      })
+    : [];
 
   return (
     <main className="mx-auto max-w-7xl p-6 space-y-6">
@@ -82,7 +108,7 @@ export default async function AdminSubmissionDetailPage({
             Possible duplicates (same postcode)
           </div>
           <div className="mt-2 text-sm text-amber-900/80">
-            Approving will still work, but review these first.
+            This is only shown for NEW venue submissions.
           </div>
           <ul className="mt-3 space-y-1 text-sm">
             {duplicates.map((d) => (
