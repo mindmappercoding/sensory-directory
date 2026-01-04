@@ -1,8 +1,18 @@
 "use client";
 
-import { useTransition } from "react";
+import * as React from "react";
 import { useRouter } from "next/navigation";
+import { useTransition } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export function SubmissionActionButton({
   id,
@@ -16,10 +26,19 @@ export function SubmissionActionButton({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
+  // dialogs
+  const [approveOpen, setApproveOpen] = React.useState(false);
+  const [approveMode, setApproveMode] = React.useState<"plain" | "verify">(
+    "plain"
+  );
+
+  const [rejectOpen, setRejectOpen] = React.useState(false);
+  const [rejectReason, setRejectReason] = React.useState("");
+
   function approveUrl() {
-    return action === "approve" && force
+    return force
       ? `/api/admin/submissions/${id}/approve?force=1`
-      : `/api/admin/submissions/${id}/${action}`;
+      : `/api/admin/submissions/${id}/approve`;
   }
 
   async function doApprove(verify: boolean) {
@@ -71,45 +90,24 @@ export function SubmissionActionButton({
     router.refresh();
   }
 
+  function onApproveClick(e: React.MouseEvent<HTMLButtonElement>, mode: "plain" | "verify") {
+    e.preventDefault();
+    e.stopPropagation();
+
+    setApproveMode(mode);
+    setApproveOpen(true);
+  }
+
   function onRejectClick(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     e.stopPropagation();
 
-    const ok = window.confirm("Reject this submission?");
-    if (!ok) return;
-
-    let reason =
-      window.prompt("Optional reject reason (saved for admin reference):") ?? "";
-    reason = reason.trim().slice(0, 600);
-
-    startTransition(async () => {
-      try {
-        await doReject(reason);
-      } catch (err: any) {
-        toast.error(err?.message ?? "Failed to reject");
-      }
-    });
+    setRejectReason("");
+    setRejectOpen(true);
   }
 
-  function onApproveClick(
-    e: React.MouseEvent<HTMLButtonElement>,
-    mode: "plain" | "verify"
-  ) {
-    e.preventDefault();
-    e.stopPropagation();
-
-    const approveMsg = force
-      ? `Approve anyway${mode === "verify" ? " and verify" : ""}?`
-      : `Approve this submission${mode === "verify" ? " and verify" : ""}?`;
-
-    const ok = window.confirm(approveMsg);
-    if (!ok) return;
-
-    // ✅ extra popup when clicking normal Approve
-    let verify = mode === "verify";
-    if (mode === "plain") {
-      verify = window.confirm("Would you like to verify now?");
-    }
+  function confirmApprove(verify: boolean) {
+    setApproveOpen(false);
 
     startTransition(async () => {
       try {
@@ -120,44 +118,157 @@ export function SubmissionActionButton({
     });
   }
 
-  // Reject = single button (unchanged)
+  function confirmReject() {
+    const reason = rejectReason.trim().slice(0, 600);
+    setRejectOpen(false);
+
+    startTransition(async () => {
+      try {
+        await doReject(reason);
+      } catch (err: any) {
+        toast.error(err?.message ?? "Failed to reject");
+      }
+    });
+  }
+
+  const approveTitle = force ? "Approve anyway?" : "Approve submission?";
+  const approveDesc =
+    approveMode === "plain"
+      ? "Would you like to verify this venue now?"
+      : "This will approve the submission and mark the venue as verified.";
+
+  // --- Render buttons ---
   if (action === "reject") {
     return (
-      <button
-        type="button"
-        onClick={onRejectClick}
-        disabled={pending}
-        className="rounded-lg border border-red-200 px-3 py-1 text-sm transition hover:bg-red-50 disabled:opacity-50"
-      >
-        {pending ? "Working..." : "Reject"}
-      </button>
+      <>
+        <Button
+          type="button"
+          variant="outline"
+          className="border-red-200 hover:bg-red-50"
+          disabled={pending}
+          onClick={onRejectClick}
+        >
+          {pending ? "Working..." : "Reject"}
+        </Button>
+
+        <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Reject submission?</DialogTitle>
+              <DialogDescription>
+                Optionally add a short reason (saved for admin reference).
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Reason (optional)</label>
+              <textarea
+                value={rejectReason}
+                onChange={(e) => setRejectReason(e.target.value)}
+                rows={4}
+                maxLength={600}
+                className="w-full rounded-md border bg-background p-2 text-sm"
+                placeholder="E.g. Missing address details, unclear venue name, duplicate listing…"
+              />
+              <div className="text-xs text-muted-foreground">
+                {rejectReason.trim().length}/600
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setRejectOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={confirmReject}
+                disabled={pending}
+              >
+                Reject
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
-  // Approve = two buttons
+  // approve action
   return (
-    <div className="flex items-center gap-2">
-      <button
-        type="button"
-        onClick={(e) => onApproveClick(e, "plain")}
-        disabled={pending}
-        className="rounded-lg border border-emerald-200 px-3 py-1 text-sm transition hover:bg-emerald-50 disabled:opacity-50"
-      >
-        {pending ? "Working..." : force ? "Approve anyway" : "Approve"}
-      </button>
+    <>
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          className="border-emerald-200 hover:bg-emerald-50"
+          disabled={pending}
+          onClick={(e) => onApproveClick(e, "plain")}
+        >
+          {pending ? "Working..." : force ? "Approve anyway" : "Approve"}
+        </Button>
 
-      <button
-        type="button"
-        onClick={(e) => onApproveClick(e, "verify")}
-        disabled={pending}
-        className="rounded-lg border border-blue-200 px-3 py-1 text-sm transition hover:bg-blue-50 disabled:opacity-50"
-      >
-        {pending
-          ? "Working..."
-          : force
-          ? "Approve & Verify anyway"
-          : "Approve & Verify"}
-      </button>
-    </div>
+        <Button
+          type="button"
+          variant="outline"
+          className="border-blue-200 hover:bg-blue-50"
+          disabled={pending}
+          onClick={(e) => onApproveClick(e, "verify")}
+        >
+          {pending
+            ? "Working..."
+            : force
+            ? "Approve & verify anyway"
+            : "Approve & verify"}
+        </Button>
+      </div>
+
+      <Dialog open={approveOpen} onOpenChange={setApproveOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{approveTitle}</DialogTitle>
+            <DialogDescription>{approveDesc}</DialogDescription>
+          </DialogHeader>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setApproveOpen(false)}>
+              Cancel
+            </Button>
+
+            {approveMode === "plain" ? (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => confirmApprove(false)}
+                  disabled={pending}
+                >
+                  No, just approve
+                </Button>
+                <Button
+                  type="button"
+                  onClick={() => confirmApprove(true)}
+                  disabled={pending}
+                >
+                  Yes, verify now
+                </Button>
+              </>
+            ) : (
+              <Button
+                type="button"
+                onClick={() => confirmApprove(true)}
+                disabled={pending}
+              >
+                Approve & verify
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
