@@ -10,14 +10,14 @@ type PostcodesIoLookup = {
 const cache = new Map<string, { lat: number; lng: number; ts: number }>();
 const CACHE_MS = 1000 * 60 * 60; // 1 hour
 
-function norm(postcode: string) {
+export function normalizeUKPostcode(postcode: string) {
   return postcode.trim().toUpperCase().replace(/\s+/g, " ");
 }
 
 export async function geocodeUKPostcode(
   postcode: string
 ): Promise<{ lat: number; lng: number } | null> {
-  const pc = norm(postcode);
+  const pc = normalizeUKPostcode(postcode);
   if (!pc) return null;
 
   const cached = cache.get(pc);
@@ -25,10 +25,8 @@ export async function geocodeUKPostcode(
     return { lat: cached.lat, lng: cached.lng };
   }
 
-  // Postcodes.io lookup endpoint
-  // GET https://api.postcodes.io/postcodes/:postcode :contentReference[oaicite:1]{index=1}
   const url = `https://api.postcodes.io/postcodes/${encodeURIComponent(pc)}`;
-  const res = await fetch(url, { method: "GET" });
+  const res = await fetch(url, { method: "GET", cache: "no-store" });
 
   if (!res.ok) return null;
 

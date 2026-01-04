@@ -16,94 +16,148 @@ export function SubmissionActionButton({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  async function handleClick(e: React.MouseEvent<HTMLButtonElement>) {
-    // ✅ Critical: stop this button from submitting the parent <form>
+  function approveUrl() {
+    return action === "approve" && force
+      ? `/api/admin/submissions/${id}/approve?force=1`
+      : `/api/admin/submissions/${id}/${action}`;
+  }
+
+  async function doApprove(verify: boolean) {
+    const res = await fetch(approveUrl(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ verify }),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (res.status === 409) {
+      toast.error(json?.error ?? "Possible duplicate venue detected.", {
+        description: "Review it first or use Approve anyway.",
+      });
+      return;
+    }
+
+    if (!res.ok) {
+      toast.error(json?.error ? String(json.error) : "Failed to approve");
+      return;
+    }
+
+    toast.success("Submission approved", {
+      description: verify ? "Venue is now live and verified." : "Venue is now live.",
+    });
+
+    router.refresh();
+  }
+
+  async function doReject(reason: string) {
+    const res = await fetch(`/api/admin/submissions/${id}/reject`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    });
+
+    const json = await res.json().catch(() => null);
+
+    if (!res.ok) {
+      toast.error(json?.error ? String(json.error) : "Failed to reject");
+      return;
+    }
+
+    toast.success("Submission rejected", {
+      description: reason ? `Reason saved: ${reason}` : "The submission has been rejected.",
+    });
+
+    router.refresh();
+  }
+
+  function onRejectClick(e: React.MouseEvent<HTMLButtonElement>) {
     e.preventDefault();
     e.stopPropagation();
 
-    let reason = "";
+    const ok = window.confirm("Reject this submission?");
+    if (!ok) return;
 
-    if (action === "reject") {
-      const ok = window.confirm("Reject this submission?");
-      if (!ok) return;
-
-      reason =
-        window.prompt("Optional reject reason (saved for admin reference):") ??
-        "";
-      reason = reason.trim().slice(0, 600);
-    }
-
-    if (action === "approve") {
-      const ok = window.confirm(
-        force
-          ? "Approve anyway? (A venue with the same postcode may already exist.)"
-          : "Approve this submission? This will create a Venue and make it live."
-      );
-      if (!ok) return;
-    }
+    let reason =
+      window.prompt("Optional reject reason (saved for admin reference):") ?? "";
+    reason = reason.trim().slice(0, 600);
 
     startTransition(async () => {
       try {
-        const url =
-          action === "approve" && force
-            ? `/api/admin/submissions/${id}/approve?force=1`
-            : `/api/admin/submissions/${id}/${action}`;
-
-        const res = await fetch(url, {
-          method: "POST",
-          headers:
-            action === "reject" ? { "Content-Type": "application/json" } : undefined,
-          body: action === "reject" ? JSON.stringify({ reason }) : undefined,
-        });
-
-        const json = await res.json().catch(() => null);
-
-        if (res.status === 409) {
-          toast.error(json?.error ?? "Possible duplicate venue detected.", {
-            description: "Review it first or use Approve anyway.",
-          });
-          return;
-        }
-
-        if (!res.ok) {
-          toast.error(json?.error ? String(json.error) : `Failed to ${action}`);
-          return;
-        }
-
-        toast.success(
-          action === "approve" ? "Submission approved" : "Submission rejected",
-          {
-            description:
-              action === "approve"
-                ? "Venue is now live."
-                : reason
-                ? `Reason saved: ${reason}`
-                : "The submission has been rejected.",
-          }
-        );
-
-        router.refresh();
+        await doReject(reason);
       } catch (err: any) {
-        toast.error(err?.message ?? `Failed to ${action}`);
+        toast.error(err?.message ?? "Failed to reject");
       }
     });
   }
 
-  const isReject = action === "reject";
+  function onApproveClick(
+    e: React.MouseEvent<HTMLButtonElement>,
+    mode: "plain" | "verify"
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
 
+    const approveMsg = force
+      ? `Approve anyway${mode === "verify" ? " and verify" : ""}?`
+      : `Approve this submission${mode === "verify" ? " and verify" : ""}?`;
+
+    const ok = window.confirm(approveMsg);
+    if (!ok) return;
+
+    // ✅ extra popup when clicking normal Approve
+    let verify = mode === "verify";
+    if (mode === "plain") {
+      verify = window.confirm("Would you like to verify now?");
+    }
+
+    startTransition(async () => {
+      try {
+        await doApprove(verify);
+      } catch (err: any) {
+        toast.error(err?.message ?? "Failed to approve");
+      }
+    });
+  }
+
+  // Reject = single button (unchanged)
+  if (action === "reject") {
+    return (
+      <button
+        type="button"
+        onClick={onRejectClick}
+        disabled={pending}
+        className="rounded-lg border border-red-200 px-3 py-1 text-sm transition hover:bg-red-50 disabled:opacity-50"
+      >
+        {pending ? "Working..." : "Reject"}
+      </button>
+    );
+  }
+
+  // Approve = two buttons
   return (
-    <button
-      type="button" // ✅ Critical
-      onClick={handleClick}
-      disabled={pending}
-      className={[
-        "rounded-lg border px-3 py-1 text-sm transition disabled:opacity-50",
-        isReject
-          ? "border-red-200 hover:bg-red-50"
-          : "border-emerald-200 hover:bg-emerald-50",
-      ].join(" ")}
-    >
-      {pending ? "Working..." : isReject ? "Reject" : force ? "Approve anyway" : "Approve"}
-    </button>
+    <div className="flex items-center gap-2">
+      <button
+        type="button"
+        onClick={(e) => onApproveClick(e, "plain")}
+        disabled={pending}
+        className="rounded-lg border border-emerald-200 px-3 py-1 text-sm transition hover:bg-emerald-50 disabled:opacity-50"
+      >
+        {pending ? "Working..." : force ? "Approve anyway" : "Approve"}
+      </button>
+
+      <button
+        type="button"
+        onClick={(e) => onApproveClick(e, "verify")}
+        disabled={pending}
+        className="rounded-lg border border-blue-200 px-3 py-1 text-sm transition hover:bg-blue-50 disabled:opacity-50"
+      >
+        {pending
+          ? "Working..."
+          : force
+          ? "Approve & Verify anyway"
+          : "Approve & Verify"}
+      </button>
+    </div>
   );
 }

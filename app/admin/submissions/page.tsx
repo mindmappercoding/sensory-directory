@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { SubmissionActionButton } from "./SubmissionActionButton";
 import { BackfillGeoButton } from "./BackfillGeoButton";
 
-
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
@@ -39,6 +38,14 @@ function safeArr(v: unknown) {
   return Array.isArray(v) ? v : [];
 }
 
+function norm(v: unknown) {
+  return typeof v === "string" ? v.trim() : "";
+}
+
+function jsonEq(a: unknown, b: unknown) {
+  return JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+}
+
 function StatusPill({ status }: { status: string }) {
   const cls =
     status === "PENDING"
@@ -59,6 +66,25 @@ function Chip({ text }: { text: string }) {
     <span className="rounded-full border bg-background px-2 py-0.5 text-xs">
       {text}
     </span>
+  );
+}
+
+function DiffRow({
+  label,
+  from,
+  to,
+}: {
+  label: string;
+  from: string;
+  to: string;
+}) {
+  return (
+    <div className="text-xs">
+      <span className="font-medium">{label}:</span>{" "}
+      <span className="text-muted-foreground line-through">{from || "—"}</span>{" "}
+      <span className="text-muted-foreground">→</span>{" "}
+      <span>{to || "—"}</span>
+    </div>
   );
 }
 
@@ -92,6 +118,54 @@ export default async function AdminSubmissionsPage({
       payload: true,
     },
   });
+
+  // ✅ fetch current venues for EDIT submissions so we can show a diff
+  const editVenueIds = submissions
+    .filter((s) => s.type === "EDIT_VENUE" && !!s.venueId)
+    .map((s) => s.venueId!) as string[];
+
+  const venues = editVenueIds.length
+    ? await prisma.venue.findMany({
+        where: { id: { in: editVenueIds } },
+        select: {
+          id: true,
+          name: true,
+          description: true,
+          website: true,
+          phone: true,
+          address1: true,
+          address2: true,
+          city: true,
+          postcode: true,
+          county: true,
+          tags: true,
+          coverImageUrl: true,
+          imageUrls: true,
+          sensory: {
+            select: {
+              noiseLevel: true,
+              lighting: true,
+              crowding: true,
+              quietSpace: true,
+              sensoryHours: true,
+              notes: true,
+            },
+          },
+          facilities: {
+            select: {
+              parking: true,
+              accessibleToilet: true,
+              babyChange: true,
+              wheelchairAccess: true,
+              staffTrained: true,
+              notes: true,
+            },
+          },
+        },
+      })
+    : [];
+
+  const venueById = new Map(venues.map((v) => [v.id, v]));
 
   const tabs: Array<{ key: Status; label: string; count: number }> = [
     { key: "PENDING", label: "Pending", count: pendingCount },
@@ -154,17 +228,14 @@ export default async function AdminSubmissionsPage({
           {submissions.map((s) => {
             const payload = isObject(s.payload) ? s.payload : {};
             const sensory = isObject(payload.sensory) ? payload.sensory : {};
-            const facilities = isObject(payload.facilities)
-              ? payload.facilities
-              : {};
+            const facilities = isObject(payload.facilities) ? payload.facilities : {};
 
             const tags = safeArr(payload.tags).filter(
               (t) => typeof t === "string" && t.trim().length
             ) as string[];
 
             const coverImageUrl =
-              typeof payload.coverImageUrl === "string" &&
-              payload.coverImageUrl.trim().length
+              typeof payload.coverImageUrl === "string" && payload.coverImageUrl.trim().length
                 ? payload.coverImageUrl.trim()
                 : null;
 
@@ -174,6 +245,64 @@ export default async function AdminSubmissionsPage({
               .slice(0, 10);
 
             const isPending = s.status === "PENDING";
+            const isEdit = s.type === "EDIT_VENUE" && !!s.venueId;
+            const current = isEdit ? venueById.get(s.venueId as string) : null;
+
+            // ✅ Build diff list for EDIT submissions
+            const diffs: Array<{ label: string; from: string; to: string }> = [];
+            if (isEdit && current) {
+              const proposedName = norm(payload.proposedName ?? s.proposedName);
+
+              const compareStr = (label: string, fromVal: unknown, toVal: unknown) => {
+                const from = norm(fromVal);
+                const to = norm(toVal);
+                if (from !== to) diffs.push({ label, from, to });
+              };
+
+              compareStr("Name", current.name, proposedName);
+              compareStr("Description", current.description, payload.description);
+              compareStr("Website", current.website, payload.website);
+              compareStr("Phone", current.phone, payload.phone);
+              compareStr("Address 1", current.address1, payload.address1);
+              compareStr("Address 2", current.address2, payload.address2);
+              compareStr("City", current.city, payload.city);
+              compareStr("Postcode", current.postcode, payload.postcode);
+              compareStr("County", current.county, payload.county);
+
+              const currentTags = Array.isArray(current.tags) ? current.tags : [];
+              const proposedTags = Array.isArray(payload.tags) ? payload.tags : [];
+              if (!jsonEq(currentTags, proposedTags)) {
+                diffs.push({
+                  label: "Tags",
+                  from: currentTags.join(", "),
+                  to: proposedTags.join(", "),
+                });
+              }
+
+              const coverFrom = current.coverImageUrl ? "Set" : "None";
+              const coverTo = coverImageUrl ? "Set" : "None";
+              if (coverFrom !== coverTo) diffs.push({ label: "Cover image", from: coverFrom, to: coverTo });
+
+              const imgsFrom = Array.isArray(current.imageUrls) ? current.imageUrls.length : 0;
+              const imgsTo = imageUrls.length;
+              if (imgsFrom !== imgsTo)
+                diffs.push({ label: "Gallery images", from: `${imgsFrom}`, to: `${imgsTo}` });
+
+              // sensory diffs (only if payload provided)
+              if (payload.sensory && current.sensory) {
+                const cs = current.sensory;
+                compareStr("Noise", cs.noiseLevel, sensory.noiseLevel);
+                compareStr("Lighting", cs.lighting, sensory.lighting);
+                compareStr("Crowding", cs.crowding, sensory.crowding);
+              }
+
+              // facilities diffs (only if payload provided)
+              if (payload.facilities && current.facilities) {
+                const cf = current.facilities;
+                if (!jsonEq(cf.parking ?? null, facilities.parking ?? null))
+                  diffs.push({ label: "Parking", from: String(!!cf.parking), to: String(!!facilities.parking) });
+              }
+            }
 
             return (
               <li key={s.id} className="rounded-2xl border bg-card p-5 space-y-4">
@@ -194,8 +323,8 @@ export default async function AdminSubmissionsPage({
                     </div>
 
                     <p className="text-sm text-muted-foreground truncate">
-                      {safeStr(payload.city)} • {safeStr(payload.postcode)} •{" "}
-                      submitted {fmtDate(s.createdAt)}
+                      {safeStr(payload.city)} • {safeStr(payload.postcode)} • submitted{" "}
+                      {fmtDate(s.createdAt)}
                       {s.submittedBy ? ` • by ${s.submittedBy}` : ""}
                       {s.reviewedAt ? ` • reviewed ${fmtDate(s.reviewedAt)}` : ""}
                     </p>
@@ -222,6 +351,39 @@ export default async function AdminSubmissionsPage({
                     )}
                   </div>
                 </div>
+
+                {/* ✅ Diff (EDIT only) */}
+                {isEdit && (
+                  <div className="rounded-xl border bg-muted/20 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-semibold">Diff (EDIT)</div>
+                      <div className="text-xs text-muted-foreground">
+                        {current ? `${diffs.length} change(s)` : "Original venue not found"}
+                      </div>
+                    </div>
+
+                    {!current ? (
+                      <div className="mt-2 text-sm text-muted-foreground">
+                        This edit references a venue that no longer exists.
+                      </div>
+                    ) : diffs.length === 0 ? (
+                      <div className="mt-2 text-sm text-muted-foreground">
+                        No detectable differences (payload matches current venue fields).
+                      </div>
+                    ) : (
+                      <div className="mt-2 space-y-1">
+                        {diffs.slice(0, 12).map((d) => (
+                          <DiffRow key={d.label} label={d.label} from={d.from} to={d.to} />
+                        ))}
+                        {diffs.length > 12 ? (
+                          <div className="text-xs text-muted-foreground">
+                            (+ {diffs.length - 12} more)
+                          </div>
+                        ) : null}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Full payload */}
                 <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
@@ -299,13 +461,9 @@ export default async function AdminSubmissionsPage({
                       <div className="text-sm font-semibold">Facilities (optional)</div>
                       <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                         <Field label="Parking">{yesNo(facilities.parking)}</Field>
-                        <Field label="Accessible toilet">
-                          {yesNo(facilities.accessibleToilet)}
-                        </Field>
+                        <Field label="Accessible toilet">{yesNo(facilities.accessibleToilet)}</Field>
                         <Field label="Baby change">{yesNo(facilities.babyChange)}</Field>
-                        <Field label="Wheelchair access">
-                          {yesNo(facilities.wheelchairAccess)}
-                        </Field>
+                        <Field label="Wheelchair access">{yesNo(facilities.wheelchairAccess)}</Field>
                         <Field label="Staff trained">{yesNo(facilities.staffTrained)}</Field>
                       </div>
 
