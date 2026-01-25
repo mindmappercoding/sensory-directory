@@ -4,13 +4,10 @@ import Image from "next/image";
 import * as React from "react";
 import { useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Upload, X, ImageIcon, CheckCircle } from "lucide-react";
 
 type Props = {
   onChange: (next: { coverImageUrl?: string; imageUrls: string[] }) => void;
-  /**
-   * manual   = shows Upload button (default, backwards compatible)
-   * deferred = hides Upload button; parent triggers upload via ref (submit button)
-   */
   mode?: "manual" | "deferred";
   disabled?: boolean;
   maxImages?: number;
@@ -49,7 +46,6 @@ const ImageUploader = React.forwardRef<ImageUploaderHandle, Props>(
 
     const canInteract = !disabled && !isUploading;
 
-    // ✅ prevent memory leaks from object URLs
     React.useEffect(() => {
       return () => {
         if (coverPreview) URL.revokeObjectURL(coverPreview);
@@ -71,7 +67,6 @@ const ImageUploader = React.forwardRef<ImageUploaderHandle, Props>(
     function setCoverFile(file: File | null) {
       setError(null);
 
-      // revoke old cover preview
       if (coverPreview) URL.revokeObjectURL(coverPreview);
 
       setCover(file);
@@ -88,7 +83,6 @@ const ImageUploader = React.forwardRef<ImageUploaderHandle, Props>(
       setImages((prev) => {
         const merged = uniqFiles([...prev, ...files]).slice(0, maxImages);
 
-        // revoke old previews
         previews.forEach((p) => URL.revokeObjectURL(p));
 
         setPreviews(merged.map((f) => URL.createObjectURL(f)));
@@ -120,10 +114,12 @@ const ImageUploader = React.forwardRef<ImageUploaderHandle, Props>(
       if (galleryInputRef.current) galleryInputRef.current.value = "";
     }
 
-    async function upload(): Promise<{ coverImageUrl?: string; imageUrls: string[] } | null> {
+    async function upload(): Promise<{
+      coverImageUrl?: string;
+      imageUrls: string[];
+    } | null> {
       setError(null);
 
-      // nothing selected
       if (!cover && images.length === 0) {
         setError("Please select a cover and/or gallery images first.");
         return null;
@@ -150,7 +146,6 @@ const ImageUploader = React.forwardRef<ImageUploaderHandle, Props>(
 
         onChange(result);
 
-        // ✅ clear local selection after successful upload
         clearSelection();
 
         return result;
@@ -179,12 +174,26 @@ const ImageUploader = React.forwardRef<ImageUploaderHandle, Props>(
     const queuedTotal = queuedCover + queuedGallery;
 
     return (
-      <div className="rounded-2xl border bg-card p-4 space-y-4">
+      <div className="space-y-6 rounded-3xl border bg-card p-6">
         {/* COVER */}
-        <div className="space-y-2">
-          <div className="text-sm font-medium">Cover image (optional)</div>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">Cover image</label>
+            {cover && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="h-8 gap-1 rounded-xl px-3"
+                onClick={() => setCoverFile(null)}
+                disabled={!canInteract}
+              >
+                <X className="h-3 w-3" />
+                Remove
+              </Button>
+            )}
+          </div>
 
-          {/* Hidden input */}
           <input
             ref={coverInputRef}
             type="file"
@@ -194,67 +203,76 @@ const ImageUploader = React.forwardRef<ImageUploaderHandle, Props>(
             disabled={!canInteract}
           />
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
+          {coverPreview ? (
+            <div className="group relative overflow-hidden rounded-2xl border">
+              <div className="relative h-48 w-full">
+                <Image
+                  src={coverPreview}
+                  alt="Cover preview"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 transition-opacity group-hover:opacity-100">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={openCoverPicker}
+                  disabled={!canInteract}
+                  className="rounded-xl"
+                >
+                  <Upload className="mr-2 h-4 w-4" />
+                  Change
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <button
               type="button"
-              variant="outline"
               onClick={openCoverPicker}
               disabled={!canInteract}
+              className="flex h-48 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed bg-muted/30 transition-colors hover:bg-muted/50 disabled:opacity-50"
             >
-              Choose cover image
-            </Button>
-
-            <div className="text-xs text-muted-foreground">
-              {cover ? cover.name : "No cover selected"}
-            </div>
-
-            {cover && (
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-8 px-2 text-xs"
-                onClick={() => setCoverFile(null)}
-                disabled={!canInteract}
-              >
-                Remove
-              </Button>
-            )}
-          </div>
-
-          {coverPreview && (
-            <div className="relative h-40 w-full overflow-hidden rounded-xl border">
-              <Image
-                src={coverPreview}
-                alt="Cover preview"
-                fill
-                className="object-cover"
-              />
-            </div>
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                <Upload className="h-6 w-6 text-primary" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium">Click to upload cover image</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  JPG, PNG or WebP
+                </p>
+              </div>
+            </button>
           )}
         </div>
 
         {/* GALLERY */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="text-sm font-medium">
-              Gallery images (up to {maxImages})
-              {queuedGallery > 0 ? ` • ${queuedGallery} selected` : ""}
-            </div>
-
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <label className="text-sm font-medium">
+              Gallery images
+              {queuedGallery > 0 && (
+                <span className="ml-2 text-xs text-muted-foreground">
+                  ({queuedGallery}/{maxImages})
+                </span>
+              )}
+            </label>
             {queuedGallery > 0 && (
               <Button
                 type="button"
                 variant="ghost"
-                className="h-8 px-2 text-xs"
+                size="sm"
+                className="h-8 gap-1 rounded-xl px-3"
                 onClick={clearGallery}
                 disabled={!canInteract}
               >
-                Clear
+                <X className="h-3 w-3" />
+                Clear all
               </Button>
             )}
           </div>
 
-          {/* Hidden input */}
           <input
             ref={galleryInputRef}
             type="file"
@@ -265,60 +283,106 @@ const ImageUploader = React.forwardRef<ImageUploaderHandle, Props>(
             disabled={!canInteract}
           />
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={openGalleryPicker}
-              disabled={!canInteract || queuedGallery >= maxImages}
-            >
-              {queuedGallery > 0 ? "Add more images" : "Choose gallery images"}
-            </Button>
-
-            <div className="text-xs text-muted-foreground">
-              {queuedGallery === 0
-                ? "No gallery images selected"
-                : `${queuedGallery} selected`}
-            </div>
-          </div>
-
-          {previews.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {previews.map((src) => (
+          {previews.length > 0 ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {previews.map((src, idx) => (
                 <div
                   key={src}
-                  className="relative h-24 overflow-hidden rounded-xl border"
+                  className="group relative overflow-hidden rounded-2xl border"
                 >
-                  <Image src={src} alt="Preview" fill className="object-cover" />
+                  <div className="relative h-32">
+                    <Image
+                      src={src}
+                      alt={`Gallery preview ${idx + 1}`}
+                      fill
+                      className="object-cover"
+                    />
+                  </div>
+                  <div className="absolute right-2 top-2">
+                    <div className="rounded-full bg-emerald-500 p-1">
+                      <CheckCircle className="h-3 w-3 text-white" />
+                    </div>
+                  </div>
                 </div>
               ))}
-            </div>
-          )}
 
-          <div className="text-xs text-muted-foreground">
-            Ready to upload:{" "}
-            {queuedTotal === 0
-              ? "nothing selected"
-              : `${queuedCover ? "1 cover" : "0 cover"} + ${queuedGallery} gallery`}
+              {queuedGallery < maxImages && (
+                <button
+                  type="button"
+                  onClick={openGalleryPicker}
+                  disabled={!canInteract}
+                  className="flex h-32 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed bg-muted/30 transition-colors hover:bg-muted/50 disabled:opacity-50"
+                >
+                  <Upload className="h-5 w-5 text-muted-foreground" />
+                  <span className="text-xs text-muted-foreground">Add more</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={openGalleryPicker}
+              disabled={!canInteract}
+              className="flex h-32 w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed bg-muted/30 transition-colors hover:bg-muted/50 disabled:opacity-50"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
+                <ImageIcon className="h-5 w-5 text-primary" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium">Click to add gallery images</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Up to {maxImages} images
+                </p>
+              </div>
+            </button>
+          )}
+        </div>
+
+        {/* Status */}
+        <div className="rounded-2xl bg-muted/50 p-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">
+              {queuedTotal === 0
+                ? "No images selected"
+                : mode === "deferred"
+                ? "Images will upload when you submit"
+                : "Ready to upload"}
+            </span>
+            {queuedTotal > 0 && (
+              <span className="font-medium">
+                {queuedCover ? "1 cover" : "No cover"} + {queuedGallery} gallery
+              </span>
+            )}
           </div>
         </div>
 
-        {error && <div className="text-sm text-red-600">{error}</div>}
-
-        {mode === "manual" ? (
-          <Button type="button" onClick={upload} disabled={!canInteract}>
-            {isUploading ? "Uploading…" : "Upload images"}
-          </Button>
-        ) : (
-          <div className="text-xs text-muted-foreground">
-            Photos will upload when you submit the form.
+        {error && (
+          <div className="flex items-start gap-2 rounded-2xl bg-destructive/10 p-3 text-sm text-destructive">
+            <span className="text-base">⚠️</span>
+            <span>{error}</span>
           </div>
         )}
 
-        <div className="text-xs text-muted-foreground">
-          After upload, image URLs are returned — your form must include them in
-          the submit payload.
-        </div>
+        {mode === "manual" && (
+          <Button
+            type="button"
+            onClick={upload}
+            disabled={!canInteract || queuedTotal === 0}
+            className="w-full rounded-2xl"
+          >
+            {isUploading ? (
+              <>
+                <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                Uploading…
+              </>
+            ) : (
+              <>
+                <Upload className="mr-2 h-4 w-4" />
+                Upload {queuedTotal} {queuedTotal === 1 ? "image" : "images"}
+              </>
+            )}
+          </Button>
+        )}
       </div>
     );
   }

@@ -4,6 +4,7 @@ import VenueFilters from "./VenueFilters";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
+import { MapPin, Star, Calendar, CheckCircle2 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -166,149 +167,194 @@ export default async function VenuesPage({
   const nearLabel = near.trim() ? normPostcode(near) : "";
 
   return (
-    <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 space-y-6">
-      {/* FULL-WIDTH BANNER */}
-      <section className="relative left-1/2 right-1/2 -mx-[50vw] w-screen overflow-hidden bg-secondary">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 py-10">
-          <div className="max-w-3xl">
-            <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
-              Sensory-friendly venues
-            </h1>
-            <p className="mt-3 text-sm sm:text-base text-muted-foreground">
-              Calm, inclusive places designed to support children and families
-              with sensory needs.
-            </p>
-          </div>
+    <main className="space-y-6 py-6">
+      {/* HERO BANNER */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/5 via-primary/10 to-secondary/20 p-8 sm:p-10">
+        <div className="relative z-10 max-w-3xl">
+          <h1 className="mb-3 text-3xl font-bold tracking-tight sm:text-4xl">
+            Sensory-friendly venues
+          </h1>
+          <p className="text-base text-muted-foreground sm:text-lg">
+            Discover calm, inclusive places designed to support children and families
+            with sensory needs. Filter by location, sensory features, and more.
+          </p>
         </div>
+        {/* Decorative gradient blob */}
+        <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary/20 blur-3xl" />
       </section>
 
-      {/* FILTER BAR (full width, navbar-style) */}
+      {/* FILTER BAR */}
       <section className="sticky top-14 z-40">
-        <div className="rounded-3xl border bg-background/80 backdrop-blur">
-          <div className="p-3 sm:p-4">
+        <div className="rounded-3xl border bg-background/95 shadow-lg backdrop-blur-sm">
+          <div className="p-4 sm:p-5">
             <VenueFilters variant="bar" resultsCount={venues.length} />
           </div>
         </div>
       </section>
 
-      {/* RESULTS */}
-      <section className="rounded-3xl border bg-card">
-        <div className="border-b px-5 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="text-sm font-semibold">Venues</div>
-              <div className="text-xs text-muted-foreground">
-                {venues.length} results
-                {origin && nearLabel ? ` • Nearest to ${nearLabel}` : ""}
-              </div>
-              {nearError && (
-                <div className="mt-1 text-xs text-amber-700">
-                  {nearError}
-                </div>
-              )}
-            </div>
-
-            <Link href="/submit" className="hidden sm:block">
-              <Button className="rounded-xl">Submit a venue</Button>
-            </Link>
-          </div>
-        </div>
-
-        <div className="p-4 sm:p-6">
-          {venues.length === 0 ? (
-            <div className="rounded-2xl border bg-background/60 p-6 text-center">
-              <div className="text-base font-medium">No venues found</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                Try adjusting your filters or searching a shorter name.
-              </div>
-            </div>
-          ) : (
-            <div className="grid gap-6 md:grid-cols-2">
-              {venues.map((v: any) => {
-                const src = v.coverImageUrl || "/600x400.png";
-                const hasReviews = (v.reviewCount ?? 0) > 0;
-                const avg = typeof v.avgRating === "number" ? v.avgRating : null;
-
-                const added =
-                  v.createdAt
-                    ? new Date(v.createdAt).toLocaleDateString("en-GB", {
-                        day: "2-digit",
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : null;
-
-                const km =
-                  typeof v.distanceMeters === "number"
-                    ? v.distanceMeters / 1000
-                    : null;
-
-                return (
-                  <Link
-                    key={v.id}
-                    href={`/venues/${v.id}`}
-                    className="group block overflow-hidden rounded-3xl border bg-background hover:bg-muted/30 transition"
-                  >
-                    <div className="relative h-56 w-full">
-                      <Image
-                        src={src}
-                        alt={v.name}
-                        fill
-                        className="object-cover"
-                        sizes="(max-width: 768px) 100vw, 50vw"
-                      />
-                      {!!v.verifiedAt && (
-                        <span className="absolute left-4 top-4 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs text-emerald-700">
-                          Verified
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="p-5">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-lg sm:text-xl font-semibold truncate">
-                            {v.name}
-                          </div>
-                          <div className="mt-1 text-sm text-muted-foreground">
-                            {[v.city, v.postcode].filter(Boolean).join(" • ")}
-                            {km !== null && (
-                              <span> • {km.toFixed(1)} km</span>
-                            )}
-                          </div>
-
-                          {/* ✅ Added date */}
-                          {added && (
-                            <div className="mt-1 text-xs text-muted-foreground">
-                              Added {added}
-                            </div>
-                          )}
-
-                          <div className="mt-2 text-xs text-muted-foreground">
-                            {hasReviews && avg !== null ? (
-                              <span>
-                                ★ {avg.toFixed(1)} · {v.reviewCount}{" "}
-                                {v.reviewCount === 1 ? "review" : "reviews"}
-                              </span>
-                            ) : (
-                              <span>No reviews yet</span>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {!!v.tags?.length && (
-                        <div className="mt-3 text-xs text-muted-foreground">
-                          {v.tags.slice(0, 8).join(" · ")}
-                        </div>
-                      )}
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+      {/* RESULTS HEADER */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">
+            {venues.length} {venues.length === 1 ? "venue" : "venues"} found
+          </h2>
+          {origin && nearLabel && (
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
+              <MapPin className="h-4 w-4" />
+              Nearest to {nearLabel}
+            </p>
+          )}
+          {nearError && (
+            <p className="mt-1 flex items-center gap-1.5 text-sm text-amber-600">
+              <span className="text-base">⚠️</span>
+              {nearError}
+            </p>
           )}
         </div>
+
+        <Link href="/submit">
+          <Button size="lg" className="h-12 rounded-2xl px-6">
+            Submit a venue
+          </Button>
+        </Link>
+      </div>
+
+      {/* RESULTS GRID */}
+      <section>
+        {venues.length === 0 ? (
+          <div className="rounded-3xl border bg-card p-12 text-center">
+            <div className="mx-auto max-w-md space-y-3">
+              <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-muted">
+                <MapPin className="h-8 w-8 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-semibold">No venues found</h3>
+              <p className="text-sm text-muted-foreground">
+                Try adjusting your filters or searching with different keywords.
+                We're always adding new venues!
+              </p>
+              <Link href="/submit" className="inline-block pt-2">
+                <Button variant="outline" className="rounded-2xl">
+                  Submit the first venue
+                </Button>
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {venues.map((v: any) => {
+              const src = v.coverImageUrl || "/600x400.png";
+              const hasReviews = (v.reviewCount ?? 0) > 0;
+              const avg = typeof v.avgRating === "number" ? v.avgRating : null;
+
+              const added =
+                v.createdAt
+                  ? new Date(v.createdAt).toLocaleDateString("en-GB", {
+                      day: "2-digit",
+                      month: "short",
+                      year: "numeric",
+                    })
+                  : null;
+
+              const km =
+                typeof v.distanceMeters === "number"
+                  ? v.distanceMeters / 1000
+                  : null;
+
+              return (
+                <Link
+                  key={v.id}
+                  href={`/venues/${v.id}`}
+                  className="group block overflow-hidden rounded-3xl border bg-card transition-all hover:shadow-lg hover:shadow-primary/5"
+                >
+                  {/* Image */}
+                  <div className="relative h-48 w-full overflow-hidden bg-muted">
+                    <Image
+                      src={src}
+                      alt={v.name}
+                      fill
+                      className="object-cover transition-transform duration-300 group-hover:scale-105"
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                    />
+                    {!!v.verifiedAt && (
+                      <div className="absolute left-3 top-3 flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50/95 px-3 py-1.5 text-xs font-medium text-emerald-700 backdrop-blur-sm">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        Verified
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div className="p-5">
+                    <div className="space-y-3">
+                      {/* Title */}
+                      <div>
+                        <h3 className="line-clamp-1 text-lg font-semibold group-hover:text-primary">
+                          {v.name}
+                        </h3>
+                        
+                        {/* Location & Distance */}
+                        <div className="mt-1.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+                          <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span className="line-clamp-1">
+                            {[v.city, v.postcode].filter(Boolean).join(", ")}
+                          </span>
+                        </div>
+                        
+                        {km !== null && (
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            {km.toFixed(1)} km away
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Reviews */}
+                      <div className="flex items-center gap-4 text-sm">
+                        {hasReviews && avg !== null ? (
+                          <div className="flex items-center gap-1.5">
+                            <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                            <span className="font-medium">{avg.toFixed(1)}</span>
+                            <span className="text-muted-foreground">
+                              ({v.reviewCount})
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground">No reviews yet</span>
+                        )}
+                      </div>
+
+                      {/* Added date */}
+                      {added && (
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <Calendar className="h-3.5 w-3.5" />
+                          Added {added}
+                        </div>
+                      )}
+
+                      {/* Tags */}
+                      {!!v.tags?.length && (
+                        <div className="flex flex-wrap gap-1.5">
+                          {v.tags.slice(0, 3).map((tag: string) => (
+                            <span
+                              key={tag}
+                              className="rounded-full bg-primary/5 px-2.5 py-1 text-xs text-primary"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                          {v.tags.length > 3 && (
+                            <span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+                              +{v.tags.length - 3}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </section>
     </main>
   );

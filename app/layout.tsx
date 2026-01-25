@@ -18,8 +18,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SEN Directory",
-  description: "Find sensory-friendly venues for families.",
+  title: "SEN Directory - Find Sensory-Friendly Venues for Your Family",
+  description: "Discover calm, inclusive places designed to support children and families with sensory processing needs. Search by location, read reviews, and share your experiences.",
+  keywords: ["sensory-friendly", "SEN", "autism", "ADHD", "sensory processing", "family venues", "inclusive spaces", "quiet hours"],
+  openGraph: {
+    title: "SEN Directory - Find Sensory-Friendly Venues",
+    description: "Discover calm, inclusive places for families with sensory needs",
+    type: "website",
+  },
 };
 
 export default function RootLayout({

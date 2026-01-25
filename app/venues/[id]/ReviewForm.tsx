@@ -3,7 +3,20 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ChevronDown, Star, LogIn, LogOut, Pencil } from "lucide-react";
+import {
+  ChevronDown,
+  Star,
+  LogIn,
+  LogOut,
+  Pencil,
+  Volume2,
+  Sun,
+  Users,
+  Sparkles,
+  User,
+  Calendar,
+  MessageSquare,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,7 +81,8 @@ export function ReviewForm({ venueId }: { venueId: string }) {
 
   const { data: session, status } = useSession();
   const authed = status === "authenticated";
-  const signedInLabel = session?.user?.name || session?.user?.email || "Signed in";
+  const signedInLabel =
+    session?.user?.name || session?.user?.email || "Signed in";
   const sessionDisplayName =
     (session?.user?.name || session?.user?.email || "")?.toString().trim();
 
@@ -80,14 +94,15 @@ export function ReviewForm({ venueId }: { venueId: string }) {
   const [loadingMine, setLoadingMine] = React.useState(false);
 
   const [formError, setFormError] = React.useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = React.useState<FieldErrors | null>(null);
+  const [fieldErrors, setFieldErrors] = React.useState<FieldErrors | null>(
+    null
+  );
 
   const [form, setForm] = React.useState({
     authorName: "",
     rating: "5",
     title: "",
     content: "",
-    // Visit date (YYYY-MM-DD) stored in visitTimeHint
     visitTimeHint: "",
 
     noiseLevel: "" as Level,
@@ -97,15 +112,19 @@ export function ReviewForm({ venueId }: { venueId: string }) {
     sensoryHours: false,
   });
 
-  // ✅ Auto-fill name from session, but never overwrite what user typed
+  // Auto-fill name from session
   React.useEffect(() => {
     if (!authed) return;
     if (!sessionDisplayName) return;
 
-    setForm((p) => (p.authorName && p.authorName.trim().length ? p : { ...p, authorName: sessionDisplayName }));
+    setForm((p) =>
+      p.authorName && p.authorName.trim().length
+        ? p
+        : { ...p, authorName: sessionDisplayName }
+    );
   }, [authed, sessionDisplayName]);
 
-  // If user signs out while open, close it + reset "myReview"
+  // If user signs out while open, close it
   React.useEffect(() => {
     if (!authed) {
       setOpen(false);
@@ -120,7 +139,7 @@ export function ReviewForm({ venueId }: { venueId: string }) {
     signIn("google", callbackUrl ? { callbackUrl } : undefined);
   }
 
-  // Load the signed-in user's existing review for this venue
+  // Load existing review
   React.useEffect(() => {
     if (!authed) return;
 
@@ -142,7 +161,9 @@ export function ReviewForm({ venueId }: { venueId: string }) {
             rating: String(r.rating ?? 5),
             title: r.title ?? "",
             content: r.content ?? "",
-            visitTimeHint: isIsoYmdDate(r.visitTimeHint) ? r.visitTimeHint : "",
+            visitTimeHint: isIsoYmdDate(r.visitTimeHint)
+              ? r.visitTimeHint
+              : "",
             noiseLevel: (r.noiseLevel ?? "") as Level,
             lighting: (r.lighting ?? "") as Level,
             crowding: (r.crowding ?? "") as Level,
@@ -150,7 +171,6 @@ export function ReviewForm({ venueId }: { venueId: string }) {
             sensoryHours: Boolean(r.sensoryHours),
           });
         } else {
-          // ✅ If no existing review, ensure name is filled from session (but don't overwrite)
           if (sessionDisplayName) {
             setForm((p) =>
               p.authorName && p.authorName.trim().length
@@ -177,20 +197,25 @@ export function ReviewForm({ venueId }: { venueId: string }) {
     value,
     onChange,
     fieldKey,
+    icon: Icon,
   }: {
     label: string;
     value: Level;
     onChange: (v: Level) => void;
     fieldKey: string;
+    icon?: React.ElementType;
   }) {
     const err = firstErr(fieldErrors, fieldKey);
     return (
       <div className="space-y-2">
-        <Label>{label}</Label>
+        <Label className="flex items-center gap-2">
+          {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+          {label}
+        </Label>
         <select
           className={[
-            "w-full rounded-xl bg-background px-3 py-2 text-sm",
-            "ring-1 ring-border/40 focus:outline-none focus:ring-2 focus:ring-ring",
+            "w-full rounded-2xl bg-background px-4 py-3 text-sm transition-all",
+            "ring-1 ring-border/40 focus:outline-none focus:ring-2 focus:ring-primary/20",
             err ? "ring-destructive/50 focus:ring-destructive" : "",
           ].join(" ")}
           value={value}
@@ -265,247 +290,333 @@ export function ReviewForm({ venueId }: { venueId: string }) {
 
   return (
     <Collapsible open={open} onOpenChange={setOpen}>
-      <div className="rounded-3xl bg-card shadow-sm ring-1 ring-border/40 overflow-hidden">
-        {/* Header (always visible) */}
-        <div className="flex items-center justify-between gap-3 p-4">
-          <div>
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Star className="h-4 w-4 text-primary" />
-              {isEditing ? "Your review" : "Leave a review"}
-              {loadingMine && authed ? (
-                <span className="text-xs text-muted-foreground font-normal">
-                  (checking…)
+      <div className="overflow-hidden rounded-3xl border bg-gradient-to-br from-card to-card shadow-sm">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4 border-b bg-muted/30 p-5">
+          <div className="flex-1">
+            <div className="mb-1 flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary/10">
+                <Star className="h-4 w-4 text-primary" />
+              </div>
+              <h3 className="text-base font-semibold">
+                {isEditing ? "Your review" : "Share your experience"}
+              </h3>
+              {loadingMine && authed && (
+                <span className="text-xs text-muted-foreground">
+                  (loading...)
                 </span>
-              ) : null}
+              )}
             </div>
 
-            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex flex-wrap items-center gap-2">
               {authed ? (
                 <>
-                  <span>
-                    Signed in as{" "}
+                  <div className="flex items-center gap-1.5 rounded-full bg-background px-3 py-1 text-xs">
+                    <User className="h-3 w-3 text-muted-foreground" />
                     <span className="font-medium">{signedInLabel}</span>
-                  </span>
-                  {isEditing ? (
-                    <span className="rounded-full px-2 py-0.5 bg-muted ring-1 ring-border/40">
-                      You can edit your review
+                  </div>
+                  {isEditing && (
+                    <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
+                      <Pencil className="mr-1 inline h-3 w-3" />
+                      Editable
                     </span>
-                  ) : null}
+                  )}
                   <button
                     type="button"
                     onClick={() => signOut()}
-                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 ring-1 ring-border/50 hover:bg-muted"
+                    className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs transition-colors hover:bg-background"
                   >
-                    <LogOut className="h-3.5 w-3.5" />
+                    <LogOut className="h-3 w-3" />
                     Sign out
                   </button>
                 </>
               ) : (
-                <span>Sign in to open the review form.</span>
+                <p className="text-sm text-muted-foreground">
+                  Sign in to share your experience
+                </p>
               )}
             </div>
           </div>
 
-          {/* Right-side button */}
+          {/* Action Button */}
           {authed ? (
             <CollapsibleTrigger asChild>
-              <Button variant={open ? "secondary" : "default"} className="rounded-2xl">
-                {open ? "Hide" : isEditing ? "Edit your review" : "Write a review"}
-                {isEditing && !open ? (
-                  <Pencil className="ml-2 h-4 w-4" />
+              <Button
+                variant={open ? "secondary" : "default"}
+                size="lg"
+                className="rounded-2xl"
+              >
+                {open ? (
+                  <>
+                    <ChevronDown className="mr-2 h-4 w-4 rotate-180 transition-transform" />
+                    Hide form
+                  </>
                 ) : (
-                  <ChevronDown
-                    className={`ml-2 h-4 w-4 transition ${open ? "rotate-180" : ""}`}
-                  />
+                  <>
+                    {isEditing ? (
+                      <>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit review
+                      </>
+                    ) : (
+                      <>
+                        <Star className="mr-2 h-4 w-4" />
+                        Write review
+                      </>
+                    )}
+                    <ChevronDown className="ml-1 h-4 w-4" />
+                  </>
                 )}
               </Button>
             </CollapsibleTrigger>
           ) : (
-            <Button onClick={handleSignIn} className="rounded-2xl">
+            <Button onClick={handleSignIn} size="lg" className="rounded-2xl">
               <LogIn className="mr-2 h-4 w-4" />
               Sign in to review
             </Button>
           )}
         </div>
 
-        {/* Form (collapsible content) */}
+        {/* Form Content */}
         <CollapsibleContent>
-          <div className="px-4 pb-4">
-            <form onSubmit={onSubmit} className="space-y-4">
+          <div className="space-y-6 p-6">
+            <form onSubmit={onSubmit} className="space-y-6">
               {formError && (
-                <div className="rounded-2xl bg-destructive/10 p-3 text-sm text-destructive ring-1 ring-destructive/20">
-                  {formError}
+                <div className="flex items-start gap-3 rounded-2xl bg-destructive/10 p-4 text-sm text-destructive ring-1 ring-destructive/20">
+                  <span className="text-lg">⚠️</span>
+                  <div>
+                    <p className="font-medium">Error submitting review</p>
+                    <p className="mt-1">{formError}</p>
+                  </div>
                 </div>
               )}
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="author">Your name (optional)</Label>
-                  <Input
-                    id="author"
-                    value={form.authorName}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, authorName: e.target.value }))
-                    }
-                    placeholder="e.g. Sarah"
-                  />
-                  {firstErr(fieldErrors, "authorName") && (
-                    <p className="text-sm text-destructive">
-                      {firstErr(fieldErrors, "authorName")}
-                    </p>
-                  )}
+              {/* Basic Info Section */}
+              <div className="space-y-4">
+                <h4 className="flex items-center gap-2 text-sm font-semibold">
+                  <MessageSquare className="h-4 w-4 text-primary" />
+                  Basic information
+                </h4>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="author" className="flex items-center gap-2">
+                      <User className="h-3.5 w-3.5 text-muted-foreground" />
+                      Your name (optional)
+                    </Label>
+                    <Input
+                      id="author"
+                      value={form.authorName}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, authorName: e.target.value }))
+                      }
+                      placeholder="e.g. Sarah"
+                      className="rounded-2xl"
+                    />
+                    {firstErr(fieldErrors, "authorName") && (
+                      <p className="text-sm text-destructive">
+                        {firstErr(fieldErrors, "authorName")}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="rating" className="flex items-center gap-2">
+                      <Star className="h-3.5 w-3.5 text-muted-foreground" />
+                      Rating *
+                    </Label>
+                    <select
+                      id="rating"
+                      className={[
+                        "w-full rounded-2xl bg-background px-4 py-3 text-sm transition-all",
+                        "ring-1 ring-border/40 focus:outline-none focus:ring-2 focus:ring-primary/20",
+                        firstErr(fieldErrors, "rating")
+                          ? "ring-destructive/50 focus:ring-destructive"
+                          : "",
+                      ].join(" ")}
+                      value={form.rating}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, rating: e.target.value }))
+                      }
+                    >
+                      <option value="5">⭐⭐⭐⭐⭐ Excellent</option>
+                      <option value="4">⭐⭐⭐⭐ Good</option>
+                      <option value="3">⭐⭐⭐ OK</option>
+                      <option value="2">⭐⭐ Not great</option>
+                      <option value="1">⭐ Poor</option>
+                    </select>
+                    {firstErr(fieldErrors, "rating") && (
+                      <p className="text-sm text-destructive">
+                        {firstErr(fieldErrors, "rating")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="title">Title (optional)</Label>
+                    <Input
+                      id="title"
+                      value={form.title}
+                      onChange={(e) =>
+                        setForm((p) => ({ ...p, title: e.target.value }))
+                      }
+                      placeholder="Quick summary of your visit"
+                      className="rounded-2xl"
+                      aria-invalid={!!firstErr(fieldErrors, "title")}
+                    />
+                    {firstErr(fieldErrors, "title") && (
+                      <p className="text-sm text-destructive">
+                        {firstErr(fieldErrors, "title")}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="visit" className="flex items-center gap-2">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
+                      Visit date (optional)
+                    </Label>
+                    <Input
+                      id="visit"
+                      type="date"
+                      value={form.visitTimeHint}
+                      max={maxDate}
+                      onChange={(e) =>
+                        setForm((p) => ({
+                          ...p,
+                          visitTimeHint: e.target.value,
+                        }))
+                      }
+                      className="rounded-2xl"
+                      aria-invalid={!!firstErr(fieldErrors, "visitTimeHint")}
+                    />
+                    {firstErr(fieldErrors, "visitTimeHint") && (
+                      <p className="text-sm text-destructive">
+                        {firstErr(fieldErrors, "visitTimeHint")}
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="rating">Rating *</Label>
-                  <select
-                    id="rating"
-                    className={[
-                      "w-full rounded-xl bg-background px-3 py-2 text-sm",
-                      "ring-1 ring-border/40 focus:outline-none focus:ring-2 focus:ring-ring",
-                      firstErr(fieldErrors, "rating")
-                        ? "ring-destructive/50 focus:ring-destructive"
-                        : "",
-                    ].join(" ")}
-                    value={form.rating}
+                  <Label htmlFor="content">Your review (optional)</Label>
+                  <Textarea
+                    id="content"
+                    value={form.content}
                     onChange={(e) =>
-                      setForm((p) => ({ ...p, rating: e.target.value }))
+                      setForm((p) => ({ ...p, content: e.target.value }))
                     }
-                  >
-                    <option value="5">5 - Excellent</option>
-                    <option value="4">4 - Good</option>
-                    <option value="3">3 - OK</option>
-                    <option value="2">2 - Not great</option>
-                    <option value="1">1 - Bad</option>
-                  </select>
-                  {firstErr(fieldErrors, "rating") && (
-                    <p className="text-sm text-destructive">
-                      {firstErr(fieldErrors, "rating")}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="title">Title (optional)</Label>
-                  <Input
-                    id="title"
-                    value={form.title}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, title: e.target.value }))
-                    }
-                    placeholder="Short summary"
-                    aria-invalid={!!firstErr(fieldErrors, "title")}
-                  />
-                  {firstErr(fieldErrors, "title") && (
-                    <p className="text-sm text-destructive">
-                      {firstErr(fieldErrors, "title")}
-                    </p>
-                  )}
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="visit">Visit date (optional)</Label>
-                  <Input
-                    id="visit"
-                    type="date"
-                    value={form.visitTimeHint}
-                    max={maxDate}
-                    onChange={(e) =>
-                      setForm((p) => ({ ...p, visitTimeHint: e.target.value }))
-                    }
-                    aria-invalid={!!firstErr(fieldErrors, "visitTimeHint")}
+                    placeholder="What was it like? Any tips for other parents?"
+                    className="min-h-[120px] rounded-2xl"
+                    aria-invalid={!!firstErr(fieldErrors, "content")}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Pick the date you visited (can’t be in the future).
+                    Share details about your experience to help other families
                   </p>
-                  {firstErr(fieldErrors, "visitTimeHint") && (
+                  {firstErr(fieldErrors, "content") && (
                     <p className="text-sm text-destructive">
-                      {firstErr(fieldErrors, "visitTimeHint")}
+                      {firstErr(fieldErrors, "content")}
                     </p>
                   )}
                 </div>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="content">Review (optional)</Label>
-                <Textarea
-                  id="content"
-                  value={form.content}
-                  onChange={(e) =>
-                    setForm((p) => ({ ...p, content: e.target.value }))
-                  }
-                  placeholder="What was it like? Any tips for parents?"
-                  aria-invalid={!!firstErr(fieldErrors, "content")}
-                />
-                {firstErr(fieldErrors, "content") && (
-                  <p className="text-sm text-destructive">
-                    {firstErr(fieldErrors, "content")}
-                  </p>
-                )}
-              </div>
+              {/* Sensory Signals Section */}
+              <div className="space-y-4 rounded-2xl bg-gradient-to-br from-primary/5 to-secondary/5 p-5">
+                <h4 className="flex items-center gap-2 text-sm font-semibold">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Sensory details (optional)
+                </h4>
 
-              <div className="pt-2">
-                <h3 className="text-sm font-medium mb-3">
-                  Sensory signals (optional)
-                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Help other families by sharing sensory-specific information
+                </p>
 
                 <div className="grid gap-4 sm:grid-cols-3">
                   <LevelSelect
-                    label="Noise"
+                    label="Noise level"
                     value={form.noiseLevel}
-                    onChange={(v) => setForm((p) => ({ ...p, noiseLevel: v }))}
+                    onChange={(v) =>
+                      setForm((p) => ({ ...p, noiseLevel: v }))
+                    }
                     fieldKey="noiseLevel"
+                    icon={Volume2}
                   />
                   <LevelSelect
                     label="Lighting"
                     value={form.lighting}
                     onChange={(v) => setForm((p) => ({ ...p, lighting: v }))}
                     fieldKey="lighting"
+                    icon={Sun}
                   />
                   <LevelSelect
                     label="Crowding"
                     value={form.crowding}
                     onChange={(v) => setForm((p) => ({ ...p, crowding: v }))}
                     fieldKey="crowding"
+                    icon={Users}
                   />
                 </div>
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <label className="flex items-center gap-2 text-sm">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label className="flex items-center gap-3 rounded-2xl bg-background/50 p-3 text-sm transition-colors hover:bg-background">
                     <Checkbox
                       checked={form.quietSpace}
                       onCheckedChange={(v) =>
                         setForm((p) => ({ ...p, quietSpace: Boolean(v) }))
                       }
                     />
-                    Quiet space available
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
+                      Quiet space available
+                    </span>
                   </label>
 
-                  <label className="flex items-center gap-2 text-sm">
+                  <label className="flex items-center gap-3 rounded-2xl bg-background/50 p-3 text-sm transition-colors hover:bg-background">
                     <Checkbox
                       checked={form.sensoryHours}
                       onCheckedChange={(v) =>
                         setForm((p) => ({ ...p, sensoryHours: Boolean(v) }))
                       }
                     />
-                    Sensory hours offered
+                    <span className="flex items-center gap-2">
+                      <Sun className="h-3.5 w-3.5 text-muted-foreground" />
+                      Sensory hours offered
+                    </span>
                   </label>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between gap-3 pt-2">
+              {/* Submit Section */}
+              <div className="flex items-center justify-between gap-4 rounded-2xl bg-muted/50 p-4">
                 <p className="text-xs text-muted-foreground">
-                  Reviews help other families choose confidently.
+                  💙 Your review helps other families make confident decisions
                 </p>
 
                 <Button
                   type="submit"
                   disabled={pending || !authed}
+                  size="lg"
                   className="rounded-2xl"
                 >
-                  {pending ? "Saving..." : isEditing ? "Update review" : "Submit review"}
+                  {pending ? (
+                    <>
+                      <span className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+                      Saving...
+                    </>
+                  ) : isEditing ? (
+                    <>
+                      <Pencil className="mr-2 h-4 w-4" />
+                      Update review
+                    </>
+                  ) : (
+                    <>
+                      <Star className="mr-2 h-4 w-4" />
+                      Submit review
+                    </>
+                  )}
                 </Button>
               </div>
             </form>

@@ -1,77 +1,151 @@
 import SubmitVenueForm from "./SubmitVenueForm";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import {
+  ArrowLeft,
+  Sparkles,
+  Heart,
+  CheckCircle,
+  Image as ImageIcon,
+  Tag,
+} from "lucide-react";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default function SubmitPage() {
   return (
-    <main className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8 h-[calc(100dvh-4rem)]">
-      <div className="flex h-full flex-col gap-6">
-        {/* Banner (match Venues page vibe) */}
-        <section className="relative shrink-0 overflow-hidden rounded-3xl border bg-card">
-          <div className="absolute inset-0 opacity-[0.35]">
-            <div className="h-full w-full bg-gradient-to-br from-sky-200/60 via-transparent to-blue-100/60" />
+    <main className="space-y-6 py-6">
+      {/* Hero Banner */}
+      <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary/5 via-primary/10 to-secondary/20 p-8 sm:p-10">
+        <div className="relative z-10 max-w-4xl">
+          <div className="mb-4 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary">
+            <Heart className="h-4 w-4" />
+            Help families discover safe spaces
           </div>
 
-          <div className="relative p-6 sm:p-8">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-              <div className="max-w-2xl">
-                <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight">
-                  Submit a venue
-                </h1>
-                <p className="mt-2 text-sm sm:text-base text-muted-foreground">
-                  Add a place that feels safe and manageable for sensory needs.
-                  Submissions are reviewed before going public.
+          <h1 className="mb-3 text-4xl font-bold tracking-tight sm:text-5xl">
+            Submit a venue
+          </h1>
+
+          <p className="mb-6 text-lg text-muted-foreground sm:text-xl">
+            Share a sensory-friendly place you've discovered. Every submission
+            helps families find calm, inclusive spaces for their children.
+          </p>
+
+          <Link href="/venues">
+            <Button variant="outline" size="lg" className="rounded-2xl">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to venues
+            </Button>
+          </Link>
+        </div>
+
+        {/* Decorative gradient blob */}
+        <div className="absolute -right-16 -top-16 h-48 w-48 rounded-full bg-primary/20 blur-3xl" />
+        <div className="absolute -bottom-16 -left-16 h-48 w-48 rounded-full bg-secondary/20 blur-3xl" />
+      </section>
+
+      {/* Main Content Grid */}
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        {/* Form Section */}
+        <section className="space-y-6">
+          <div className="rounded-3xl border bg-card p-6">
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-semibold">Venue details</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Fill in the details below. All submissions are reviewed before
+                  being published.
                 </p>
               </div>
-
-              <div className="flex w-full sm:w-auto gap-2">
-                <Link href="/venues" className="w-full sm:w-auto">
-                  <Button variant="outline" className="w-full sm:w-auto">
-                    Back to venues
-                  </Button>
-                </Link>
+              <div className="flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary">
+                <Sparkles className="h-3 w-3" />
+                Community powered
               </div>
             </div>
+
+            <SubmitVenueForm />
           </div>
         </section>
 
-        {/* Content fills remaining height */}
-        <div className="grid flex-1 gap-6 lg:grid-cols-[1fr_360px] min-h-0">
-          {/* Scrollable form panel (ONLY scroll area) */}
-          <section className="relative min-h-0 rounded-3xl border bg-card">
-            <div className="shrink-0 border-b px-5 py-4">
-              <div className="text-sm font-semibold">Submission form</div>
-              <div className="text-xs text-muted-foreground">
-                The form scrolls — the rest of the page stays put.
+        {/* Sidebar */}
+        <aside className="space-y-6">
+          {/* Tips Card */}
+          <div className="rounded-3xl border bg-card p-6">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+                <CheckCircle className="h-5 w-5 text-primary" />
               </div>
+              <h3 className="font-semibold">Quick tips</h3>
             </div>
 
-            <div className="absolute inset-x-0 bottom-0 top-[72px] overflow-y-auto overscroll-contain">
-              <div className="p-5">
-                <SubmitVenueForm />
-              </div>
-            </div>
-          </section>
+            <ul className="space-y-3 text-sm text-muted-foreground">
+              <li className="flex items-start gap-2">
+                <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <ImageIcon className="h-3 w-3 text-primary" />
+                </div>
+                <span>
+                  <strong className="font-medium text-foreground">Photos help trust:</strong>{" "}
+                  Add clear images showing the space and atmosphere
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Sparkles className="h-3 w-3 text-primary" />
+                </div>
+                <span>
+                  <strong className="font-medium text-foreground">Be specific:</strong>{" "}
+                  Even "not sure" sensory info is valuable for families
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                  <Tag className="h-3 w-3 text-primary" />
+                </div>
+                <span>
+                  <strong className="font-medium text-foreground">Choose relevant tags:</strong>{" "}
+                  Pick tags that match how parents search
+                </span>
+              </li>
+            </ul>
+          </div>
 
-          {/* Right-side helper panel (no scroll) */}
-          <aside className="hidden lg:block">
-            <div className="rounded-3xl border bg-card p-5 space-y-3">
-              <div className="text-sm font-semibold">Quick tips</div>
-              <ul className="text-sm text-muted-foreground space-y-2 list-disc pl-4">
-                <li>Even “not sure” sensory info still helps.</li>
-                <li>Photos are optional but boost trust.</li>
-                <li>Pick tags that match how parents search.</li>
-              </ul>
-
-              <div className="pt-2 text-xs text-muted-foreground">
-                Thank you for helping families find calmer places 💙
+          {/* What Happens Next */}
+          <div className="rounded-3xl border bg-gradient-to-br from-emerald-50 to-emerald-50/50 p-6 dark:from-emerald-950/20 dark:to-emerald-950/10">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-100 dark:bg-emerald-900/40">
+                <Heart className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
               </div>
+              <h3 className="font-semibold">What happens next?</h3>
             </div>
-          </aside>
-        </div>
+
+            <ol className="space-y-3 text-sm text-muted-foreground">
+              <li className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
+                  1
+                </span>
+                <span>We review your submission within 24-48 hours</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
+                  2
+                </span>
+                <span>Once approved, it appears in search results</span>
+              </li>
+              <li className="flex gap-3">
+                <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-xs font-bold text-white">
+                  3
+                </span>
+                <span>Families can discover and review the venue</span>
+              </li>
+            </ol>
+
+            <div className="mt-4 rounded-2xl bg-background/50 p-3 text-xs">
+              💙 Thank you for helping families find calmer, more welcoming spaces
+            </div>
+          </div>
+        </aside>
       </div>
     </main>
   );
