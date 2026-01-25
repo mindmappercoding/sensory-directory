@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { CheckCircle, X, Trash2, EyeOff } from "lucide-react";
 
 type Props = {
   reportId: string;
@@ -39,10 +40,8 @@ export default function ReportActions({ reportId, reviewId }: Props) {
     setAction(null);
   }
 
-  // ✅ Resolve: hide review + mark report RESOLVED
   async function handleResolve() {
     try {
-      // 1) Use your existing PATCH (toggle) endpoint
       const first = await fetch(`/api/admin/reviews/${reviewId}`, {
         method: "PATCH",
         cache: "no-store",
@@ -55,9 +54,6 @@ export default function ReportActions({ reportId, reviewId }: Props) {
         return;
       }
 
-      // 2) Ensure it ends up HIDDEN:
-      //    If for some reason it's still not hidden (eg already hidden → toggle shows it),
-      //    toggle again. Your API returns { hidden: boolean }.
       if (!firstData.hidden) {
         const second = await fetch(`/api/admin/reviews/${reviewId}`, {
           method: "PATCH",
@@ -72,7 +68,6 @@ export default function ReportActions({ reportId, reviewId }: Props) {
         }
       }
 
-      // 3) Mark the report as RESOLVED
       const reportRes = await fetch(`/api/admin/review-reports/${reportId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -96,7 +91,6 @@ export default function ReportActions({ reportId, reviewId }: Props) {
     }
   }
 
-  // ✅ Dismiss: keep review up + mark report DISMISSED
   async function handleDismiss() {
     try {
       const res = await fetch(`/api/admin/review-reports/${reportId}`, {
@@ -123,7 +117,6 @@ export default function ReportActions({ reportId, reviewId }: Props) {
     }
   }
 
-  // ✅ Delete: permanently delete review
   async function handleDeleteReview() {
     try {
       const deleteRes = await fetch(`/api/admin/reviews/${reviewId}`, {
@@ -139,7 +132,8 @@ export default function ReportActions({ reportId, reviewId }: Props) {
       }
 
       toast.success("Review deleted", {
-        description: "The review has been removed and venue stats have been updated.",
+        description:
+          "The review has been removed and venue stats have been updated.",
       });
 
       router.refresh();
@@ -151,7 +145,6 @@ export default function ReportActions({ reportId, reviewId }: Props) {
   function onConfirm() {
     if (!action) return;
 
-    // close first so UI feels snappy
     closeConfirm();
 
     startTransition(async () => {
@@ -167,30 +160,34 @@ export default function ReportActions({ reportId, reviewId }: Props) {
           title: "Resolve report?",
           description:
             "This will hide the review from the public listing and mark the report as RESOLVED.",
-          confirmText: "Resolve (hide review)",
-          confirmVariant: "destructive" as const,
+          confirmText: "Resolve & hide review",
+          confirmVariant: "default" as const,
+          icon: EyeOff,
         }
       : action === "dismiss"
       ? {
           title: "Dismiss report?",
           description:
             "This will keep the review visible and mark the report as DISMISSED.",
-          confirmText: "Dismiss (keep review)",
-          confirmVariant: "default" as const,
+          confirmText: "Dismiss report",
+          confirmVariant: "outline" as const,
+          icon: CheckCircle,
         }
       : action === "delete"
       ? {
           title: "Delete review permanently?",
           description:
-            "This will permanently delete the review. This cannot be undone.",
+            "This will permanently delete the review. This action cannot be undone.",
           confirmText: "Delete review",
           confirmVariant: "destructive" as const,
+          icon: Trash2,
         }
       : {
           title: "",
           description: "",
           confirmText: "Confirm",
           confirmVariant: "default" as const,
+          icon: CheckCircle,
         };
 
   return (
@@ -198,11 +195,22 @@ export default function ReportActions({ reportId, reviewId }: Props) {
       <div className="flex flex-wrap gap-2">
         <Button
           size="sm"
-          variant="destructive"
+          variant="default"
           disabled={pending}
           onClick={() => openConfirm("resolve")}
+          className="rounded-2xl"
         >
-          {pending ? "Working..." : "Resolve (hide review)"}
+          {pending ? (
+            <>
+              <span className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              Working...
+            </>
+          ) : (
+            <>
+              <EyeOff className="mr-2 h-3.5 w-3.5" />
+              Resolve (hide review)
+            </>
+          )}
         </Button>
 
         <Button
@@ -210,34 +218,63 @@ export default function ReportActions({ reportId, reviewId }: Props) {
           variant="outline"
           disabled={pending}
           onClick={() => openConfirm("dismiss")}
+          className="rounded-2xl"
         >
-          {pending ? "Working..." : "Dismiss (keep review)"}
+          {pending ? (
+            <>
+              <span className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+              Working...
+            </>
+          ) : (
+            <>
+              <CheckCircle className="mr-2 h-3.5 w-3.5" />
+              Dismiss (keep review)
+            </>
+          )}
         </Button>
 
         <Button
           size="sm"
-          variant="secondary"
+          variant="destructive"
           disabled={pending}
           onClick={() => openConfirm("delete")}
+          className="rounded-2xl"
         >
-          {pending ? "Working..." : "Delete review"}
+          {pending ? (
+            <>
+              <span className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              Working...
+            </>
+          ) : (
+            <>
+              <Trash2 className="mr-2 h-3.5 w-3.5" />
+              Delete review
+            </>
+          )}
         </Button>
       </div>
 
       <Dialog open={open} onOpenChange={(v) => (pending ? null : setOpen(v))}>
-        <DialogContent>
+        <DialogContent className="rounded-3xl">
           <DialogHeader>
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10">
+              {React.createElement(dialogCopy.icon, {
+                className: "h-6 w-6 text-primary",
+              })}
+            </div>
             <DialogTitle>{dialogCopy.title}</DialogTitle>
             <DialogDescription>{dialogCopy.description}</DialogDescription>
           </DialogHeader>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
               type="button"
               variant="outline"
               onClick={closeConfirm}
               disabled={pending}
+              className="rounded-2xl"
             >
+              <X className="mr-2 h-3.5 w-3.5" />
               Cancel
             </Button>
 
@@ -246,8 +283,16 @@ export default function ReportActions({ reportId, reviewId }: Props) {
               variant={dialogCopy.confirmVariant}
               onClick={onConfirm}
               disabled={pending}
+              className="rounded-2xl"
             >
-              {pending ? "Working..." : dialogCopy.confirmText}
+              {pending ? (
+                <>
+                  <span className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Working...
+                </>
+              ) : (
+                dialogCopy.confirmText
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

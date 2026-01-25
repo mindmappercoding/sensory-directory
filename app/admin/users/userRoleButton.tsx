@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Shield, UserMinus, UserPlus } from "lucide-react";
 
 export function UserRoleButton({
   userId,
@@ -61,18 +62,46 @@ export function UserRoleButton({
 
   return (
     <>
-      <button
+      <Button
         type="button"
         onClick={onClick}
         disabled={pending}
-        className="rounded-lg border px-3 py-1 text-xs hover:bg-muted disabled:opacity-50"
+        variant={isDemote ? "destructive" : "default"}
+        size="sm"
+        className="rounded-2xl"
       >
-        {pending ? "Working…" : isDemote ? "Demote" : "Promote"}
-      </button>
+        {pending ? (
+          <>
+            <span className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+            Working…
+          </>
+        ) : isDemote ? (
+          <>
+            <UserMinus className="mr-2 h-3.5 w-3.5" />
+            Demote
+          </>
+        ) : (
+          <>
+            <UserPlus className="mr-2 h-3.5 w-3.5" />
+            Promote
+          </>
+        )}
+      </Button>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-3xl">
           <DialogHeader>
+            <div
+              className={`mb-4 flex h-12 w-12 items-center justify-center rounded-2xl ${
+                isDemote ? "bg-red-100" : "bg-emerald-100"
+              }`}
+            >
+              {isDemote ? (
+                <UserMinus className="h-6 w-6 text-red-600" />
+              ) : (
+                <Shield className="h-6 w-6 text-emerald-600" />
+              )}
+            </div>
             <DialogTitle>
               {isDemote ? "Remove admin access?" : "Make this user an admin?"}
             </DialogTitle>
@@ -83,11 +112,12 @@ export function UserRoleButton({
             </DialogDescription>
           </DialogHeader>
 
-          <DialogFooter>
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button
               type="button"
               variant="outline"
               onClick={() => setOpen(false)}
+              className="rounded-2xl"
             >
               Cancel
             </Button>
@@ -97,8 +127,24 @@ export function UserRoleButton({
               onClick={confirm}
               disabled={pending}
               variant={isDemote ? "destructive" : "default"}
+              className="rounded-2xl"
             >
-              {isDemote ? "Demote to USER" : "Promote to ADMIN"}
+              {pending ? (
+                <>
+                  <span className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                  Working…
+                </>
+              ) : isDemote ? (
+                <>
+                  <UserMinus className="mr-2 h-3.5 w-3.5" />
+                  Demote to USER
+                </>
+              ) : (
+                <>
+                  <Shield className="mr-2 h-3.5 w-3.5" />
+                  Promote to ADMIN
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

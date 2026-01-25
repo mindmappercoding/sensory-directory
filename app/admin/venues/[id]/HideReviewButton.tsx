@@ -3,6 +3,7 @@
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { EyeOff, Eye } from "lucide-react";
 
 export default function HideReviewButton({
   reviewId,
@@ -16,7 +17,7 @@ export default function HideReviewButton({
 
   return (
     <Button
-      variant={isHidden ? "secondary" : "destructive"}
+      variant={isHidden ? "outline" : "destructive"}
       size="sm"
       disabled={pending}
       onClick={() => {
@@ -34,8 +35,24 @@ export default function HideReviewButton({
           router.refresh();
         });
       }}
+      className="rounded-2xl"
     >
-      {pending ? "Saving..." : isHidden ? "Restore" : "Hide"}
+      {pending ? (
+        <>
+          <span className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          Saving...
+        </>
+      ) : isHidden ? (
+        <>
+          <Eye className="mr-2 h-3.5 w-3.5" />
+          Restore
+        </>
+      ) : (
+        <>
+          <EyeOff className="mr-2 h-3.5 w-3.5" />
+          Hide
+        </>
+      )}
     </Button>
   );
 }

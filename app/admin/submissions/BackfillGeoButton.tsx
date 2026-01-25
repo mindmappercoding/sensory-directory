@@ -2,6 +2,8 @@
 
 import { useTransition } from "react";
 import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { MapPin } from "lucide-react";
 
 export function BackfillGeoButton() {
   const [pending, startTransition] = useTransition();
@@ -39,13 +41,25 @@ export function BackfillGeoButton() {
   }
 
   return (
-    <button
+    <Button
       onClick={run}
       disabled={pending}
-      className="rounded-lg border px-3 py-1 text-sm hover:bg-muted disabled:opacity-50"
+      variant="outline"
+      size="sm"
+      className="rounded-2xl"
       title="Populate geo fields for venues missing lat/lng"
     >
-      {pending ? "Backfilling…" : "Backfill venue geo"}
-    </button>
+      {pending ? (
+        <>
+          <span className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          Backfilling…
+        </>
+      ) : (
+        <>
+          <MapPin className="mr-2 h-3.5 w-3.5" />
+          Backfill venue geo
+        </>
+      )}
+    </Button>
   );
 }

@@ -4,16 +4,37 @@ import { useMemo, useState, useTransition } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-
 import {
   venueSubmissionSchema,
   VenueSubmissionInput,
 } from "@/lib/validators/venueSubmission";
-
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import { SubmissionActionButton } from "../SubmissionActionButton";
+import {
+  Building2,
+  Globe,
+  Phone,
+  MapPin,
+  Tag,
+  Volume2,
+  Sun,
+  Users,
+  Sparkles,
+  Car,
+  Accessibility,
+  Baby,
+  UserCheck,
+  Save,
+  Upload,
+  X,
+  ImageIcon,
+  FileText,
+  AlertTriangle,
+} from "lucide-react";
 
 const AVAILABLE_TAGS = [
   "softplay",
@@ -31,7 +52,12 @@ const LEVELS = ["VERY_LOW", "LOW", "MEDIUM", "HIGH", "VERY_HIGH"] as const;
 
 function ErrorText({ msg }: { msg?: string }) {
   if (!msg) return null;
-  return <div className="mt-1 text-xs text-red-600">{msg}</div>;
+  return (
+    <div className="mt-1 flex items-center gap-1 text-xs text-red-600">
+      <AlertTriangle className="h-3 w-3" />
+      {msg}
+    </div>
+  );
 }
 
 function levelLabel(v: string) {
@@ -170,10 +196,7 @@ export function SubmissionEditForm({
 
       const newUrls = Array.isArray(json.imageUrls) ? json.imageUrls : [];
       if (newUrls.length) {
-        const merged = uniq([...(getValues("imageUrls") ?? []), ...newUrls]).slice(
-          0,
-          10
-        );
+        const merged = uniq([...(getValues("imageUrls") ?? []), ...newUrls]).slice(0, 10);
         setValue("imageUrls", merged, {
           shouldDirty: true,
           shouldValidate: true,
@@ -219,44 +242,79 @@ export function SubmissionEditForm({
   return (
     <form onSubmit={handleSubmit(save)} className="space-y-6">
       {/* Actions */}
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border bg-card p-4">
-        <button
-          type="submit"
-          disabled={pending || uploading || !isPending}
-          className="rounded-lg border px-3 py-1 text-sm hover:bg-muted disabled:opacity-50"
-        >
-          {pending ? "Saving…" : "Save changes"}
-        </button>
+      <div className="rounded-3xl border bg-card p-5">
+        <div className="mb-4 flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+            <FileText className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold">Actions</h3>
+            <p className="text-sm text-muted-foreground">
+              Save changes or approve/reject this submission
+            </p>
+          </div>
+        </div>
 
-        <div className="h-6 w-px bg-border mx-1" />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="submit"
+            disabled={pending || uploading || !isPending}
+            variant="outline"
+            size="sm"
+            className="rounded-2xl"
+          >
+            {pending ? (
+              <>
+                <span className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                Saving…
+              </>
+            ) : (
+              <>
+                <Save className="mr-2 h-3.5 w-3.5" />
+                Save changes
+              </>
+            )}
+          </Button>
 
-        <SubmissionActionButton id={id} action="approve" />
-        {hasDuplicates && <SubmissionActionButton id={id} action="approve" force />}
-        <SubmissionActionButton id={id} action="reject" />
+          <div className="h-6 w-px bg-border" />
 
-        {!isPending && (
-          <span className="text-sm text-muted-foreground">
-            This submission is {status} (editing disabled).
-          </span>
-        )}
+          <SubmissionActionButton id={id} action="approve" />
+          {hasDuplicates && <SubmissionActionButton id={id} action="approve" force />}
+          <SubmissionActionButton id={id} action="reject" />
+
+          {!isPending && (
+            <span className="ml-2 text-sm text-muted-foreground">
+              This submission is {status} (editing disabled)
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Images */}
-      <div className="rounded-2xl border bg-card p-5 space-y-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm font-semibold">Images</div>
-            <div className="text-xs text-muted-foreground">
-              Upload/replace cover and gallery images for this submission.
-            </div>
+      <div className="space-y-4 rounded-3xl border bg-card p-6">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+            <ImageIcon className="h-5 w-5 text-primary" />
           </div>
-          <div className="text-xs text-muted-foreground">
-            {uploading ? "Uploading…" : ""}
+          <div className="flex-1">
+            <h3 className="font-semibold">Images</h3>
+            <p className="text-sm text-muted-foreground">
+              Upload or manage submission images
+            </p>
+            {uploading && (
+              <p className="mt-1 text-xs text-amber-600">Uploading…</p>
+            )}
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <label className="rounded-lg border px-3 py-1 text-sm hover:bg-muted cursor-pointer">
+          <label
+            className={[
+              "inline-flex cursor-pointer items-center gap-2 rounded-2xl border bg-background px-4 py-2 text-sm transition-colors hover:bg-muted",
+              !isPending || uploading ? "cursor-not-allowed opacity-50" : "",
+            ].join(" ")}
+          >
+            <Upload className="h-3.5 w-3.5" />
             Upload cover
             <input
               type="file"
@@ -272,7 +330,13 @@ export function SubmissionEditForm({
             />
           </label>
 
-          <label className="rounded-lg border px-3 py-1 text-sm hover:bg-muted cursor-pointer">
+          <label
+            className={[
+              "inline-flex cursor-pointer items-center gap-2 rounded-2xl border bg-background px-4 py-2 text-sm transition-colors hover:bg-muted",
+              !isPending || uploading ? "cursor-not-allowed opacity-50" : "",
+            ].join(" ")}
+          >
+            <Upload className="h-3.5 w-3.5" />
             Upload gallery
             <input
               type="file"
@@ -289,16 +353,19 @@ export function SubmissionEditForm({
             />
           </label>
 
-          <button
+          <Button
             type="button"
             disabled={!isPending}
             onClick={() =>
               setValue("coverImageUrl", "", { shouldDirty: true, shouldValidate: true })
             }
-            className="rounded-lg border px-3 py-1 text-sm hover:bg-muted disabled:opacity-50"
+            variant="ghost"
+            size="sm"
+            className="rounded-2xl"
           >
+            <X className="mr-2 h-3.5 w-3.5" />
             Remove cover
-          </button>
+          </Button>
         </div>
 
         <ErrorText msg={errors.coverImageUrl?.message as any} />
@@ -306,33 +373,33 @@ export function SubmissionEditForm({
 
         <div className="grid gap-4 lg:grid-cols-2">
           <div>
-            <div className="text-xs text-muted-foreground">Cover</div>
+            <Label className="mb-2 text-sm font-medium">Cover</Label>
             {cover ? (
               <a href={cover} target="_blank" rel="noreferrer">
                 <img
                   src={cover}
                   alt="Cover"
-                  className="mt-2 w-full rounded-xl border object-cover aspect-[16/9]"
+                  className="mt-2 aspect-[16/9] w-full rounded-2xl border object-cover"
                 />
               </a>
             ) : (
-              <div className="mt-2 rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">
+              <div className="mt-2 rounded-2xl border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
                 No cover image
               </div>
             )}
           </div>
 
           <div>
-            <div className="text-xs text-muted-foreground">Gallery</div>
+            <Label className="mb-2 text-sm font-medium">Gallery</Label>
             {gallery.length ? (
               <div className="mt-2 grid grid-cols-3 gap-2">
                 {gallery.map((u) => (
-                  <div key={u} className="relative">
+                  <div key={u} className="group relative">
                     <a href={u} target="_blank" rel="noreferrer">
                       <img
                         src={u}
                         alt="Gallery"
-                        className="h-24 w-full rounded-lg border object-cover"
+                        className="h-24 w-full rounded-2xl border object-cover"
                       />
                     </a>
                     {isPending && (
@@ -345,17 +412,17 @@ export function SubmissionEditForm({
                             shouldValidate: true,
                           });
                         }}
-                        className="absolute right-1 top-1 rounded bg-black/70 px-2 py-1 text-xs text-white"
+                        className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/70 opacity-0 transition group-hover:opacity-100"
                         title="Remove image"
                       >
-                        ✕
+                        <X className="h-3 w-3 text-white" />
                       </button>
                     )}
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="mt-2 rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground">
+              <div className="mt-2 rounded-2xl border bg-muted/30 p-6 text-center text-sm text-muted-foreground">
                 No gallery images
               </div>
             )}
@@ -364,66 +431,116 @@ export function SubmissionEditForm({
       </div>
 
       {/* Main fields */}
-      <div className="rounded-2xl border bg-card p-5 space-y-4">
-        <div className="text-sm font-semibold">Venue details</div>
+      <div className="space-y-4 rounded-3xl border bg-card p-6">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+            <Building2 className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold">Venue Details</h3>
+            <p className="text-sm text-muted-foreground">Basic venue information</p>
+          </div>
+        </div>
 
         <div className="grid gap-4">
           <div>
-            <div className="text-sm font-medium">Venue name</div>
-            <Input disabled={!isPending} {...register("proposedName")} />
+            <Label>Venue name</Label>
+            <Input
+              disabled={!isPending}
+              {...register("proposedName")}
+              className="rounded-2xl"
+            />
             <ErrorText msg={errors.proposedName?.message} />
           </div>
 
           <div>
-            <div className="text-sm font-medium">Description</div>
-            <Textarea disabled={!isPending} className="min-h-24" {...register("description")} />
+            <Label>Description</Label>
+            <Textarea
+              disabled={!isPending}
+              className="min-h-24 rounded-2xl"
+              {...register("description")}
+            />
             <ErrorText msg={errors.description?.message} />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <div className="text-sm font-medium">Website</div>
-              <Input disabled={!isPending} {...register("website")} />
+              <Label className="flex items-center gap-2">
+                <Globe className="h-3.5 w-3.5 text-muted-foreground" />
+                Website
+              </Label>
+              <Input
+                disabled={!isPending}
+                {...register("website")}
+                className="rounded-2xl"
+              />
               <ErrorText msg={errors.website?.message as any} />
             </div>
 
             <div>
-              <div className="text-sm font-medium">Phone</div>
-              <Input disabled={!isPending} {...register("phone")} />
+              <Label className="flex items-center gap-2">
+                <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+                Phone
+              </Label>
+              <Input
+                disabled={!isPending}
+                {...register("phone")}
+                className="rounded-2xl"
+              />
               <ErrorText msg={errors.phone?.message} />
             </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <div className="text-sm font-medium">Address line 1</div>
-              <Input disabled={!isPending} {...register("address1")} />
+              <Label>Address line 1</Label>
+              <Input
+                disabled={!isPending}
+                {...register("address1")}
+                className="rounded-2xl"
+              />
               <ErrorText msg={errors.address1?.message} />
             </div>
 
             <div>
-              <div className="text-sm font-medium">Address line 2</div>
-              <Input disabled={!isPending} {...register("address2")} />
+              <Label>Address line 2</Label>
+              <Input
+                disabled={!isPending}
+                {...register("address2")}
+                className="rounded-2xl"
+              />
               <ErrorText msg={errors.address2?.message} />
             </div>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
             <div>
-              <div className="text-sm font-medium">City</div>
-              <Input disabled={!isPending} {...register("city")} />
+              <Label>City</Label>
+              <Input
+                disabled={!isPending}
+                {...register("city")}
+                className="rounded-2xl"
+              />
               <ErrorText msg={errors.city?.message} />
             </div>
 
             <div>
-              <div className="text-sm font-medium">Postcode</div>
-              <Input disabled={!isPending} {...register("postcode")} />
+              <Label>Postcode</Label>
+              <Input
+                disabled={!isPending}
+                {...register("postcode")}
+                className="rounded-2xl"
+              />
               <ErrorText msg={errors.postcode?.message} />
             </div>
 
             <div>
-              <div className="text-sm font-medium">County</div>
-              <Input disabled={!isPending} {...register("county")} />
+              <Label>County</Label>
+              <Input
+                disabled={!isPending}
+                {...register("county")}
+                className="rounded-2xl"
+              />
               <ErrorText msg={errors.county?.message} />
             </div>
           </div>
@@ -431,20 +548,27 @@ export function SubmissionEditForm({
       </div>
 
       {/* Tags */}
-      <div className="rounded-2xl border bg-card p-5 space-y-3">
+      <div className="space-y-4 rounded-3xl border bg-card p-6">
         <div className="flex items-start justify-between">
-          <div>
-            <div className="text-sm font-semibold">Tags</div>
-            <div className="text-xs text-muted-foreground">Minimum 1 required.</div>
+          <div className="flex items-start gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+              <Tag className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-semibold">Tags</h3>
+              <p className="text-sm text-muted-foreground">Minimum 1 required</p>
+            </div>
           </div>
           {isPending && selectedTags.length > 0 && (
-            <button
+            <Button
               type="button"
-              className="rounded-lg border px-3 py-1 text-sm hover:bg-muted"
+              variant="ghost"
+              size="sm"
+              className="rounded-2xl"
               onClick={() => setValue("tags", [], { shouldDirty: true, shouldValidate: true })}
             >
               Clear
-            </button>
+            </Button>
           )}
         </div>
 
@@ -458,9 +582,9 @@ export function SubmissionEditForm({
                 disabled={!isPending}
                 onClick={() => toggleTag(t)}
                 className={[
-                  "rounded-full border px-3 py-1 text-xs transition disabled:opacity-50",
+                  "rounded-full border px-4 py-2 text-sm transition disabled:opacity-50",
                   selected
-                    ? "bg-blue-600 text-white border-blue-600"
+                    ? "border-primary bg-primary text-primary-foreground"
                     : "bg-background hover:bg-muted/60",
                 ].join(" ")}
               >
@@ -474,18 +598,26 @@ export function SubmissionEditForm({
       </div>
 
       {/* Sensory */}
-      <div className="rounded-2xl border bg-card p-5 space-y-4">
-        <div>
-          <div className="text-sm font-semibold">Sensory</div>
-          <div className="text-xs text-muted-foreground">Required. Notes optional.</div>
+      <div className="space-y-4 rounded-3xl border bg-gradient-to-br from-primary/5 to-secondary/5 p-6">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+            <Sparkles className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Sensory</h3>
+            <p className="text-sm text-muted-foreground">Required. Notes optional</p>
+          </div>
         </div>
 
         <div className="grid gap-4 sm:grid-cols-3">
           <div>
-            <div className="text-sm font-medium">Noise</div>
+            <Label className="flex items-center gap-2">
+              <Volume2 className="h-3.5 w-3.5 text-muted-foreground" />
+              Noise
+            </Label>
             <select
               disabled={!isPending}
-              className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background disabled:opacity-50"
+              className="mt-1 w-full rounded-2xl border bg-background px-3 py-2 text-sm disabled:opacity-50"
               value={(sensory as any)?.noiseLevel ?? ""}
               onChange={(e) =>
                 setValue("sensory.noiseLevel", (e.target.value || undefined) as any, {
@@ -505,10 +637,13 @@ export function SubmissionEditForm({
           </div>
 
           <div>
-            <div className="text-sm font-medium">Lighting</div>
+            <Label className="flex items-center gap-2">
+              <Sun className="h-3.5 w-3.5 text-muted-foreground" />
+              Lighting
+            </Label>
             <select
               disabled={!isPending}
-              className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background disabled:opacity-50"
+              className="mt-1 w-full rounded-2xl border bg-background px-3 py-2 text-sm disabled:opacity-50"
               value={(sensory as any)?.lighting ?? ""}
               onChange={(e) =>
                 setValue("sensory.lighting", (e.target.value || undefined) as any, {
@@ -528,10 +663,13 @@ export function SubmissionEditForm({
           </div>
 
           <div>
-            <div className="text-sm font-medium">Crowding</div>
+            <Label className="flex items-center gap-2">
+              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+              Crowding
+            </Label>
             <select
               disabled={!isPending}
-              className="mt-1 w-full rounded-md border px-3 py-2 text-sm bg-background disabled:opacity-50"
+              className="mt-1 w-full rounded-2xl border bg-background px-3 py-2 text-sm disabled:opacity-50"
               value={(sensory as any)?.crowding ?? ""}
               onChange={(e) =>
                 setValue("sensory.crowding", (e.target.value || undefined) as any, {
@@ -552,7 +690,7 @@ export function SubmissionEditForm({
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-3 rounded-2xl bg-background/50 p-4 text-sm">
             <Checkbox
               disabled={!isPending}
               checked={!!(sensory as any)?.quietSpace}
@@ -563,7 +701,7 @@ export function SubmissionEditForm({
             Quiet space available (tick = yes)
           </label>
 
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-3 rounded-2xl bg-background/50 p-4 text-sm">
             <Checkbox
               disabled={!isPending}
               checked={!!(sensory as any)?.sensoryHours}
@@ -576,21 +714,30 @@ export function SubmissionEditForm({
         </div>
 
         <div>
-          <div className="text-sm font-medium">Sensory notes</div>
-          <Textarea disabled={!isPending} className="min-h-20" {...register("sensory.notes")} />
+          <Label>Sensory notes</Label>
+          <Textarea
+            disabled={!isPending}
+            className="min-h-20 rounded-2xl"
+            {...register("sensory.notes")}
+          />
           <ErrorText msg={(errors.sensory as any)?.notes?.message} />
         </div>
       </div>
 
-      {/* Facilities (optional) */}
-      <div className="rounded-2xl border bg-card p-5 space-y-4">
-        <div>
-          <div className="text-sm font-semibold">Facilities (optional)</div>
-          <div className="text-xs text-muted-foreground">Optional.</div>
+      {/* Facilities */}
+      <div className="space-y-4 rounded-3xl border bg-card p-6">
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10">
+            <Accessibility className="h-5 w-5 text-primary" />
+          </div>
+          <div>
+            <h3 className="font-semibold">Facilities (optional)</h3>
+            <p className="text-sm text-muted-foreground">Optional amenities</p>
+          </div>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-3 rounded-2xl bg-muted/30 p-4 text-sm">
             <Checkbox
               disabled={!isPending}
               checked={!!facilities?.parking}
@@ -598,10 +745,13 @@ export function SubmissionEditForm({
                 setValue("facilities.parking", !!v, { shouldDirty: true })
               }
             />
-            Parking
+            <span className="flex items-center gap-2">
+              <Car className="h-3.5 w-3.5 text-muted-foreground" />
+              Parking
+            </span>
           </label>
 
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-3 rounded-2xl bg-muted/30 p-4 text-sm">
             <Checkbox
               disabled={!isPending}
               checked={!!facilities?.accessibleToilet}
@@ -609,10 +759,13 @@ export function SubmissionEditForm({
                 setValue("facilities.accessibleToilet", !!v, { shouldDirty: true })
               }
             />
-            Accessible toilet
+            <span className="flex items-center gap-2">
+              <Accessibility className="h-3.5 w-3.5 text-muted-foreground" />
+              Accessible toilet
+            </span>
           </label>
 
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-3 rounded-2xl bg-muted/30 p-4 text-sm">
             <Checkbox
               disabled={!isPending}
               checked={!!facilities?.babyChange}
@@ -620,10 +773,13 @@ export function SubmissionEditForm({
                 setValue("facilities.babyChange", !!v, { shouldDirty: true })
               }
             />
-            Baby change
+            <span className="flex items-center gap-2">
+              <Baby className="h-3.5 w-3.5 text-muted-foreground" />
+              Baby change
+            </span>
           </label>
 
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-3 rounded-2xl bg-muted/30 p-4 text-sm">
             <Checkbox
               disabled={!isPending}
               checked={!!facilities?.wheelchairAccess}
@@ -631,10 +787,13 @@ export function SubmissionEditForm({
                 setValue("facilities.wheelchairAccess", !!v, { shouldDirty: true })
               }
             />
-            Wheelchair access
+            <span className="flex items-center gap-2">
+              <Accessibility className="h-3.5 w-3.5 text-muted-foreground" />
+              Wheelchair access
+            </span>
           </label>
 
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-3 rounded-2xl bg-muted/30 p-4 text-sm">
             <Checkbox
               disabled={!isPending}
               checked={!!facilities?.staffTrained}
@@ -642,23 +801,26 @@ export function SubmissionEditForm({
                 setValue("facilities.staffTrained", !!v, { shouldDirty: true })
               }
             />
-            Staff trained/supportive
+            <span className="flex items-center gap-2">
+              <UserCheck className="h-3.5 w-3.5 text-muted-foreground" />
+              Staff trained/supportive
+            </span>
           </label>
         </div>
 
         <div>
-          <div className="text-sm font-medium">Facilities notes</div>
+          <Label>Facilities notes</Label>
           <Textarea
             disabled={!isPending}
-            className="min-h-20"
+            className="min-h-20 rounded-2xl"
             {...register("facilities.notes")}
           />
           <ErrorText msg={(errors.facilities as any)?.notes?.message} />
         </div>
 
-        <details className="rounded-xl border bg-muted/20 p-4">
+        <details className="rounded-2xl border bg-muted/20 p-4">
           <summary className="cursor-pointer text-sm font-semibold">Raw payload</summary>
-          <pre className="mt-3 max-h-[320px] overflow-auto rounded-xl border bg-muted/30 p-3 text-xs">
+          <pre className="mt-3 max-h-[320px] overflow-auto rounded-2xl border bg-muted/30 p-3 text-xs">
             {JSON.stringify(getValues(), null, 2)}
           </pre>
         </details>

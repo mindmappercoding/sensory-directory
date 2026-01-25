@@ -13,6 +13,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { CheckCircle2, XCircle, AlertTriangle, Shield } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 
 export function SubmissionActionButton({
   id,
@@ -26,7 +28,6 @@ export function SubmissionActionButton({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
 
-  // dialogs
   const [approveOpen, setApproveOpen] = React.useState(false);
   const [approveMode, setApproveMode] = React.useState<"plain" | "verify">(
     "plain"
@@ -63,7 +64,9 @@ export function SubmissionActionButton({
     }
 
     toast.success("Submission approved", {
-      description: verify ? "Venue is now live and verified." : "Venue is now live.",
+      description: verify
+        ? "Venue is now live and verified."
+        : "Venue is now live.",
     });
 
     router.refresh();
@@ -84,13 +87,18 @@ export function SubmissionActionButton({
     }
 
     toast.success("Submission rejected", {
-      description: reason ? `Reason saved: ${reason}` : "The submission has been rejected.",
+      description: reason
+        ? `Reason saved: ${reason}`
+        : "The submission has been rejected.",
     });
 
     router.refresh();
   }
 
-  function onApproveClick(e: React.MouseEvent<HTMLButtonElement>, mode: "plain" | "verify") {
+  function onApproveClick(
+    e: React.MouseEvent<HTMLButtonElement>,
+    mode: "plain" | "verify"
+  ) {
     e.preventDefault();
     e.stopPropagation();
 
@@ -137,23 +145,36 @@ export function SubmissionActionButton({
       ? "Would you like to verify this venue now?"
       : "This will approve the submission and mark the venue as verified.";
 
-  // --- Render buttons ---
   if (action === "reject") {
     return (
       <>
         <Button
           type="button"
-          variant="outline"
-          className="border-red-200 hover:bg-red-50"
+          variant="destructive"
+          size="sm"
           disabled={pending}
           onClick={onRejectClick}
+          className="rounded-2xl"
         >
-          {pending ? "Working..." : "Reject"}
+          {pending ? (
+            <>
+              <span className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              Working...
+            </>
+          ) : (
+            <>
+              <XCircle className="mr-2 h-3.5 w-3.5" />
+              Reject
+            </>
+          )}
         </Button>
 
         <Dialog open={rejectOpen} onOpenChange={setRejectOpen}>
-          <DialogContent>
+          <DialogContent className="rounded-3xl">
             <DialogHeader>
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-red-100">
+                <XCircle className="h-6 w-6 text-red-600" />
+              </div>
               <DialogTitle>Reject submission?</DialogTitle>
               <DialogDescription>
                 Optionally add a short reason (saved for admin reference).
@@ -162,12 +183,12 @@ export function SubmissionActionButton({
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Reason (optional)</label>
-              <textarea
+              <Textarea
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 rows={4}
                 maxLength={600}
-                className="w-full rounded-md border bg-background p-2 text-sm"
+                className="rounded-2xl"
                 placeholder="E.g. Missing address details, unclear venue name, duplicate listing…"
               />
               <div className="text-xs text-muted-foreground">
@@ -175,11 +196,12 @@ export function SubmissionActionButton({
               </div>
             </div>
 
-            <DialogFooter>
+            <DialogFooter className="gap-2 sm:gap-0">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setRejectOpen(false)}
+                className="rounded-2xl"
               >
                 Cancel
               </Button>
@@ -188,8 +210,9 @@ export function SubmissionActionButton({
                 variant="destructive"
                 onClick={confirmReject}
                 disabled={pending}
+                className="rounded-2xl"
               >
-                Reject
+                {pending ? "Rejecting..." : "Reject"}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -198,44 +221,80 @@ export function SubmissionActionButton({
     );
   }
 
-  // approve action
   return (
     <>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"
-          variant="outline"
-          className="border-emerald-200 hover:bg-emerald-50"
+          variant="default"
+          size="sm"
           disabled={pending}
           onClick={(e) => onApproveClick(e, "plain")}
+          className="rounded-2xl"
         >
-          {pending ? "Working..." : force ? "Approve anyway" : "Approve"}
+          {pending ? (
+            <>
+              <span className="mr-2 h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+              Working...
+            </>
+          ) : force ? (
+            <>
+              <AlertTriangle className="mr-2 h-3.5 w-3.5" />
+              Approve anyway
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className="mr-2 h-3.5 w-3.5" />
+              Approve
+            </>
+          )}
         </Button>
 
         <Button
           type="button"
           variant="outline"
-          className="border-blue-200 hover:bg-blue-50"
+          size="sm"
           disabled={pending}
           onClick={(e) => onApproveClick(e, "verify")}
+          className="rounded-2xl border-emerald-200 hover:bg-emerald-50"
         >
-          {pending
-            ? "Working..."
-            : force
-            ? "Approve & verify anyway"
-            : "Approve & verify"}
+          {pending ? (
+            "Working..."
+          ) : force ? (
+            <>
+              <Shield className="mr-2 h-3.5 w-3.5" />
+              Approve & verify anyway
+            </>
+          ) : (
+            <>
+              <Shield className="mr-2 h-3.5 w-3.5" />
+              Approve & verify
+            </>
+          )}
         </Button>
       </div>
 
       <Dialog open={approveOpen} onOpenChange={setApproveOpen}>
-        <DialogContent>
+        <DialogContent className="rounded-3xl">
           <DialogHeader>
+            <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-100">
+              {approveMode === "verify" ? (
+                <Shield className="h-6 w-6 text-emerald-600" />
+              ) : (
+                <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+              )}
+            </div>
             <DialogTitle>{approveTitle}</DialogTitle>
             <DialogDescription>{approveDesc}</DialogDescription>
           </DialogHeader>
 
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setApproveOpen(false)}>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setApproveOpen(false)}
+              className="rounded-2xl"
+            >
               Cancel
             </Button>
 
@@ -246,6 +305,7 @@ export function SubmissionActionButton({
                   variant="outline"
                   onClick={() => confirmApprove(false)}
                   disabled={pending}
+                  className="rounded-2xl"
                 >
                   No, just approve
                 </Button>
@@ -253,7 +313,9 @@ export function SubmissionActionButton({
                   type="button"
                   onClick={() => confirmApprove(true)}
                   disabled={pending}
+                  className="rounded-2xl"
                 >
+                  <Shield className="mr-2 h-3.5 w-3.5" />
                   Yes, verify now
                 </Button>
               </>
@@ -262,6 +324,7 @@ export function SubmissionActionButton({
                 type="button"
                 onClick={() => confirmApprove(true)}
                 disabled={pending}
+                className="rounded-2xl"
               >
                 Approve & verify
               </Button>
