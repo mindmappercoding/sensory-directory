@@ -80,7 +80,7 @@ export default function Home() {
               Parks
             </Link>
             <Link
-              href="/venues?tags=soft-play"
+              href="/venues?tags=softplay"
               className="rounded-full bg-background px-3 py-1 hover:bg-muted"
             >
               Soft Play
